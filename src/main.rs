@@ -4,6 +4,17 @@
 #![no_std]
 #![no_main]
 
+//#![feature(alloc)]
+
+extern crate alloc;
+
+use embedded_alloc::Heap;
+
+#[global_allocator]
+static HEAP: Heap = Heap::empty();
+
+use alloc::vec::Vec;
+
 use bsp::entry;
 use defmt::*;
 use defmt_rtt as _;
@@ -15,15 +26,29 @@ use panic_probe as _;
 use rp_pico as bsp;
 // use sparkfun_pro_micro_rp2040 as bsp;
 
+use embedded_hal::spi::MODE_0;
+use embedded_hal::blocking::spi::Write;
+use fugit::RateExtU32;
+
 use bsp::hal::{
     clocks::{init_clocks_and_plls, Clock},
     pac,
     sio::Sio,
+    spi::Spi,
+    gpio::FunctionSpi,
     watchdog::Watchdog,
 };
 
 #[entry]
 fn main() -> ! {
+
+    {
+        use core::mem::MaybeUninit;
+        const HEAP_SIZE: usize = 1024;
+        static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
+        unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
+    }
+
     info!("Program start");
     let mut pac = pac::Peripherals::take().unwrap();
     let core = pac::CorePeripherals::take().unwrap();
@@ -53,6 +78,16 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
+    let sclk = pins.gpio18.into_function::<FunctionSpi>();
+    let mosi = pins.gpio19.into_function::<FunctionSpi>();
+
+    let spi_device = pac.SPI0;
+    let spi_pin_layout = (mosi, sclk);
+
+    let mut spi = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
+        .init(&mut pac.RESETS, 125_000_000u32.Hz(), 16_000_000u32.Hz(), MODE_0);
+
+
     // This is the correct pin on the Raspberry Pico board. On other boards, even if they have an
     // on-board LED, it might need to be changed.
     // Notably, on the Pico W, the LED is not connected to any of the RP2040 GPIOs but to the cyw43 module instead. If you have
@@ -60,12 +95,43 @@ fn main() -> ! {
     // LED to one of the GPIO pins, and reference that pin here.
     let mut led_pin = pins.led.into_push_pull_output();
 
+    let led_data_1 = Vec::<u8>::from(
+        [
+            0x00,0x00,0x00,0x00,0xff,0x00,0x00,0xff,0xff,0xff,0x00,0x00,0xff,0x00,0xff,0x00,0xff,0xff,0xff,0x00,0xff,0x00,0x00,0x00,0xff,0x00,0x00,0x00,0xff,0x00,0x00,0x00,0xff,0x00,0x00,0x00,0xff,0xff,0x00,0x00,0xff,0x00,0x00,0x00, 0xff,0xff,0xff,0xff
+            // 0x00, 0x00, 0x00, 0x00,
+            // 0xff, 0xff, 0x00, 0x00,
+            // 0xff, 0x00, 0xff, 0x00,
+            // 0xff, 0x00, 0x00, 0xff,
+            // 0xff, 0xff, 0x00, 0xff,
+            // 0xff, 0x00, 0x00, 0x00,
+            // 0xff, 0x00, 0xff, 0xff,
+            // 0xff, 0xff, 0xff, 0xff
+        ]
+    );
+
+    let led_data_2 = Vec::<u8>::from(
+        [
+            0x00,0x00,0x00,0x00,0xff,0x00,0x00,0xff,0xff,0xff,0x00,0x00,0xff,0x00,0xff,0x00,0xff,0x00,0x00,0x00,0xff,0x00,0x00,0x00,0xff,0x00,0x00,0x00,0xff,0x00,0x00,0x00,0xff,0x00,0x00,0x00,0xff,0x00,0x00,0x00,0xff,0x00,0xff,0xff, 0xff,0xff,0xff,0xff
+            // 0x00, 0x00, 0x00, 0x00,
+            // 0xff, 0x00, 0xff, 0xff,
+            // 0xff, 0x00, 0xff, 0x00,
+            // 0xff, 0x00, 0x00, 0xff,
+            // 0xff, 0xff, 0x00, 0xff,
+            // 0xff, 0x00, 0x00, 0x00,
+            // 0xff, 0xff, 0x00, 0x00,
+            // 0xff, 0xff, 0xff, 0xff
+        ]
+    );
+
+
     loop {
         info!("on!");
         led_pin.set_high().unwrap();
+        let _ = spi.write(&led_data_1);
         delay.delay_ms(500);
         info!("off!");
         led_pin.set_low().unwrap();
+        let _ = spi.write(&led_data_2);
         delay.delay_ms(500);
     }
 }
