@@ -8,7 +8,6 @@ license = "MIT OR Apache-2.0"
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
 embedded-hal = { version = "0.2.5", features = ["unproven"] }
-embedded-alloc = "0.5.1"
 
 
 defmt = "0.3"

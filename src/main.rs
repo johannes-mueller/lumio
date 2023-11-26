@@ -4,18 +4,9 @@
 #![no_std]
 #![no_main]
 
-//#![feature(alloc)]
-
-extern crate alloc;
 
 use core::usize;
 
-use embedded_alloc::Heap;
-
-#[global_allocator]
-static HEAP: Heap = Heap::empty();
-
-use alloc::vec::Vec;
 
 use bsp::entry;
 use defmt::*;
@@ -47,13 +38,6 @@ const DATA_SIZE: usize = NUM_LED*4+4+TAIL;
 
 #[entry]
 fn main() -> ! {
-
-    {
-        use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 1024;
-        static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
-        unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
-    }
 
     info!("Program start");
     let mut pac = pac::Peripherals::take().unwrap();
@@ -105,11 +89,6 @@ fn main() -> ! {
     for i in DATA_SIZE-TAIL..DATA_SIZE {
         led_data[i] = 0xff;
     }
-    // led_data[NUM_LED*4+4] = 0xff;
-    // led_data[NUM_LED*4+5] = 0xff;
-    // led_data[NUM_LED*4+6] = 0xff;
-    // led_data[NUM_LED*4+7] = 0xff;
-
 
     let mut i: usize = 0;
     loop {
