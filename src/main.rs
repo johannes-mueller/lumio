@@ -20,7 +20,7 @@ use alloc::vec::Vec;
 use bsp::entry;
 use defmt::*;
 use defmt_rtt as _;
-use embedded_hal::digital::v2::OutputPin;
+//use embedded_hal::digital::v2::OutputPin;
 use panic_probe as _;
 
 // Provide an alias for our BSP so we can switch targets quickly.
@@ -41,7 +41,8 @@ use bsp::hal::{
     watchdog::Watchdog,
 };
 
-const NUM_LED: usize = 180;
+const NUM_LED: usize = 240;
+const TAIL: usize = NUM_LED / 11;
 
 #[entry]
 fn main() -> ! {
@@ -89,7 +90,7 @@ fn main() -> ! {
     let spi_pin_layout = (mosi, sclk);
 
     let mut spi = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
-        .init(&mut pac.RESETS, 125_000_000u32.Hz(), 16_000_000u32.Hz(), MODE_0);
+        .init(&mut pac.RESETS, 125_000_000u32.Hz(), 4_000_000u32.Hz(), MODE_0);
 
 
     // This is the correct pin on the Raspberry Pico board. On other boards, even if they have an
@@ -97,21 +98,33 @@ fn main() -> ! {
     // Notably, on the Pico W, the LED is not connected to any of the RP2040 GPIOs but to the cyw43 module instead. If you have
     // a Pico W and want to toggle a LED with a simple GPIO output pin, you can connect an external
     // LED to one of the GPIO pins, and reference that pin here.
-    let mut led_pin = pins.led.into_push_pull_output();
+    // let mut led_pin = pins.led.into_push_pull_output();
 
-    let mut led_data = Vec::<u8>::from([0x00u8; NUM_LED*4+8]);
-    led_data[NUM_LED*4+4] = 0xff;
-    led_data[NUM_LED*4+5] = 0xff;
-    led_data[NUM_LED*4+6] = 0xff;
-    led_data[NUM_LED*4+7] = 0xff;
+    let mut led_data = Vec::<u8>::from([0x00u8; NUM_LED*4+4+TAIL]);
+    for i in NUM_LED*4+4..NUM_LED*4+4+TAIL {
+        led_data[i] = 0xff;
+    }
+    // led_data[NUM_LED*4+4] = 0xff;
+    // led_data[NUM_LED*4+5] = 0xff;
+    // led_data[NUM_LED*4+6] = 0xff;
+    // led_data[NUM_LED*4+7] = 0xff;
 
 
-    let mut i = 0;
+    let mut i: usize = 0;
     loop {
         led_data[4+i*4] = 0xff;
         led_data[4+i*4+1] = 0xff;
+        let im1: usize = if i == 0 {
+            (NUM_LED-1) as usize
+        } else {
+            ((i-1) % NUM_LED) as usize
+        };
+
+        led_data[4+im1%NUM_LED*4+0] = 0x70;
+        led_data[4+im1*4+1] = 0x00;
         let _ = spi.write(&led_data);
-        delay.delay_ms(1);
+        //delay.delay_ms(1);
+        delay.delay_us(500);
         i = (i+1) % NUM_LED;
         // info!("off!");
         // led_pin.set_low().unwrap();
