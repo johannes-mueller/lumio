@@ -36,6 +36,68 @@ const NUM_LED: usize = 720;
 const TAIL: usize = NUM_LED / 11;
 const DATA_SIZE: usize = NUM_LED*4+4+TAIL;
 
+#[derive(Clone, Copy)]
+struct Color {
+    r: u8,
+    g: u8,
+    b: u8
+}
+
+const BLUE: Color = Color { r: 0, g: 0, b: 255 };
+const GREEN: Color = Color { r: 0, g: 1, b: 255 };
+const BLACK: Color = Color { r: 0, g: 0, b: 0 };
+
+#[derive(Clone, Copy)]
+struct Led {
+    current: Color,
+    target: Color,
+    decay: f32
+}
+
+impl Led {
+
+}
+
+struct LEDStrip {
+    bytes: [u8; DATA_SIZE],
+    leds: [Led; NUM_LED]
+}
+
+impl LEDStrip {
+    pub fn new() -> LEDStrip {
+        let mut bytes: [u8; DATA_SIZE] = [0x00u8; DATA_SIZE];
+        for i in DATA_SIZE-TAIL..DATA_SIZE {
+            bytes[i] = 0xff;
+        }
+        let default_led = Led{ current: BLACK, target: BLACK, decay: 0.0 };
+        let leds = [default_led; NUM_LED];
+        LEDStrip { bytes, leds }
+    }
+
+    pub fn set_led(&mut self, pos: isize, color: Color) {
+        let i: usize = if pos < 0 {
+            (NUM_LED - pos.abs() as usize) % NUM_LED
+        } else {
+            pos as usize % NUM_LED
+        };
+        self.leds[i].target = color;
+        self.leds[i].current = color;
+
+    }
+
+    pub fn dump(&mut self) -> &[u8; DATA_SIZE] {
+        for i in 0..NUM_LED {
+            self.bytes[4+i*4] = 0xff;
+            self.bytes[4+i*4+1] = self.leds[i].current.b;
+            self.bytes[4+i*4+2] = self.leds[i].current.g;
+            self.bytes[4+i*4+3] = self.leds[i].current.r;
+        }
+        &self.bytes
+    }
+}
+
+
+
 #[entry]
 fn main() -> ! {
 
@@ -85,27 +147,17 @@ fn main() -> ! {
     // LED to one of the GPIO pins, and reference that pin here.
     // let mut led_pin = pins.led.into_push_pull_output();
 
-    let mut led_data: [u8; DATA_SIZE] = [0x00u8; DATA_SIZE];
-    for i in DATA_SIZE-TAIL..DATA_SIZE {
-        led_data[i] = 0xff;
-    }
 
-    let mut i: usize = 0;
+    let mut led_strip: LEDStrip = LEDStrip::new();
+
+    let mut i: isize = 0;
     loop {
-        led_data[4+i*4] = 0xff;
-        led_data[4+i*4+1] = 0xff;
-        let im1: usize = if i == 0 {
-            (NUM_LED-1) as usize
-        } else {
-            ((i-1) % NUM_LED) as usize
-        };
-
-        led_data[4+im1%NUM_LED*4+0] = 0x70;
-        led_data[4+im1*4+1] = 0x00;
-        let _ = spi.write(&led_data);
+        led_strip.set_led(i, BLUE);
+        led_strip.set_led(i-1, BLACK);
+        let _ = spi.write(led_strip.dump());
         //delay.delay_ms(1);
         delay.delay_us(500);
-        i = (i+1) % NUM_LED;
+        i = (i+1) % NUM_LED as isize;
         // info!("off!");
         // led_pin.set_low().unwrap();
         // let _ = spi.write(&led_data);
