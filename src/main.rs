@@ -41,8 +41,9 @@ use bsp::hal::{
     watchdog::Watchdog,
 };
 
-const NUM_LED: usize = 240;
+const NUM_LED: usize = 720;
 const TAIL: usize = NUM_LED / 11;
+const DATA_SIZE: usize = NUM_LED*4+4+TAIL;
 
 #[entry]
 fn main() -> ! {
@@ -100,8 +101,8 @@ fn main() -> ! {
     // LED to one of the GPIO pins, and reference that pin here.
     // let mut led_pin = pins.led.into_push_pull_output();
 
-    let mut led_data = Vec::<u8>::from([0x00u8; NUM_LED*4+4+TAIL]);
-    for i in NUM_LED*4+4..NUM_LED*4+4+TAIL {
+    let mut led_data: [u8; DATA_SIZE] = [0x00u8; DATA_SIZE];
+    for i in DATA_SIZE-TAIL..DATA_SIZE {
         led_data[i] = 0xff;
     }
     // led_data[NUM_LED*4+4] = 0xff;
