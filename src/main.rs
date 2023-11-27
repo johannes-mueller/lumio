@@ -32,70 +32,15 @@ use bsp::hal::{
     watchdog::Watchdog,
 };
 
-const NUM_LED: usize = 720;
-const TAIL: usize = NUM_LED / 11;
-const DATA_SIZE: usize = NUM_LED*4+4+TAIL;
 
-#[derive(Clone, Copy)]
-struct Color {
-    r: u8,
-    g: u8,
-    b: u8
-}
 
-const BLUE: Color = Color { r: 0, g: 0, b: 255 };
-const GREEN: Color = Color { r: 0, g: 1, b: 255 };
-const BLACK: Color = Color { r: 0, g: 0, b: 0 };
+mod conf;
+mod led;
+mod ledstrip;
 
-#[derive(Clone, Copy)]
-struct Led {
-    current: Color,
-    target: Color,
-    decay: f32
-}
-
-impl Led {
-
-}
-
-struct LEDStrip {
-    bytes: [u8; DATA_SIZE],
-    leds: [Led; NUM_LED]
-}
-
-impl LEDStrip {
-    pub fn new() -> LEDStrip {
-        let mut bytes: [u8; DATA_SIZE] = [0x00u8; DATA_SIZE];
-        for i in DATA_SIZE-TAIL..DATA_SIZE {
-            bytes[i] = 0xff;
-        }
-        let default_led = Led{ current: BLACK, target: BLACK, decay: 0.0 };
-        let leds = [default_led; NUM_LED];
-        LEDStrip { bytes, leds }
-    }
-
-    pub fn set_led(&mut self, pos: isize, color: Color) {
-        let i: usize = if pos < 0 {
-            (NUM_LED - pos.abs() as usize) % NUM_LED
-        } else {
-            pos as usize % NUM_LED
-        };
-        self.leds[i].target = color;
-        self.leds[i].current = color;
-
-    }
-
-    pub fn dump(&mut self) -> &[u8; DATA_SIZE] {
-        for i in 0..NUM_LED {
-            self.bytes[4+i*4] = 0xff;
-            self.bytes[4+i*4+1] = self.leds[i].current.b;
-            self.bytes[4+i*4+2] = self.leds[i].current.g;
-            self.bytes[4+i*4+3] = self.leds[i].current.r;
-        }
-        &self.bytes
-    }
-}
-
+use conf::NUM_LED;
+use ledstrip::LEDStrip;
+use led::{BLUE, BLACK};
 
 
 #[entry]
@@ -137,7 +82,7 @@ fn main() -> ! {
     let spi_pin_layout = (mosi, sclk);
 
     let mut spi = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
-        .init(&mut pac.RESETS, 125_000_000u32.Hz(), 4_000_000u32.Hz(), MODE_0);
+        .init(&mut pac.RESETS, 125_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
 
 
     // This is the correct pin on the Raspberry Pico board. On other boards, even if they have an
