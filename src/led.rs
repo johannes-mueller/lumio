@@ -11,11 +11,23 @@ pub const BLACK: Color = Color { r: 0, g: 0, b: 0 };
 
 #[derive(Clone, Copy)]
 pub struct Led {
-    pub current: Color,
-    pub target: Color,
-    pub decay: f32
+    current: Color,
+    target: Color,
+    decay: f32
 }
 
 impl Led {
+    pub fn new() -> Led {
+        Led { current: BLACK, target: BLACK, decay: 0.0 }
+    }
 
+    pub fn set_color(&mut self, color: Color) {
+        self.target = color;
+        self.current = color;
+        self.decay = 0.0;
+    }
+
+    pub fn current_color(&self) -> Color {
+        self.current
+    }
 }

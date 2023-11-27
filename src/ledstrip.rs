@@ -13,8 +13,7 @@ impl LEDStrip {
         for i in DATA_SIZE-TAIL..DATA_SIZE {
             bytes[i] = 0xff;
         }
-        let default_led = Led{ current: BLACK, target: BLACK, decay: 0.0 };
-        let leds = [default_led; NUM_LED];
+        let leds = [Led::new(); NUM_LED];
         LEDStrip { bytes, leds }
     }
 
@@ -24,17 +23,16 @@ impl LEDStrip {
         } else {
             pos as usize % NUM_LED
         };
-        self.leds[i].target = color;
-        self.leds[i].current = color;
-
+        self.leds[i].set_color(color);
     }
 
     pub fn dump(&mut self) -> &[u8; DATA_SIZE] {
         for i in 0..NUM_LED {
             self.bytes[4+i*4] = 0xff;
-            self.bytes[4+i*4+1] = self.leds[i].current.b;
-            self.bytes[4+i*4+2] = self.leds[i].current.g;
-            self.bytes[4+i*4+3] = self.leds[i].current.r;
+            let c = self.leds[i].current_color();
+            self.bytes[4+i*4+1] = c.b;
+            self.bytes[4+i*4+2] = c.g;
+            self.bytes[4+i*4+3] = c.r;
         }
         &self.bytes
     }
