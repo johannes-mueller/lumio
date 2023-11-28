@@ -38,7 +38,7 @@ mod ledstrip;
 
 use conf::NUM_LED;
 use ledstrip::LEDStrip;
-use led::{BLUE, BLACK};
+use led::{BLUE, YELLOW, BLACK};
 
 
 #[entry]
@@ -95,6 +95,7 @@ fn main() -> ! {
 
     let mut i: isize = 0;
     loop {
+        led_strip.set_led(i+1, YELLOW);
         led_strip.set_led(i, BLUE);
         //led_strip.set_led(i-1, BLACK);
         led_strip.set_led_target(i-1, BLACK, 0.3);
