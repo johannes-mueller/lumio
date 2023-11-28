@@ -18,20 +18,12 @@ impl LEDStrip {
     }
 
     pub fn set_led(&mut self, pos: isize, color: Color) {
-        let i: usize = if pos < 0 {
-            (NUM_LED - pos.abs() as usize) % NUM_LED
-        } else {
-            pos as usize % NUM_LED
-        };
+        let i = index_from_pos(pos);
         self.leds[i].set_color(color);
     }
 
     pub fn set_led_target(&mut self, pos: isize, color: Color, decay: f32) {
-        let i: usize = if pos < 0 {
-            (NUM_LED - pos.abs() as usize) % NUM_LED
-        } else {
-            pos as usize % NUM_LED
-        };
+        let i = index_from_pos(pos);
         self.leds[i].set_target(color, decay);
     }
 
@@ -46,4 +38,8 @@ impl LEDStrip {
         }
         &self.bytes
     }
+}
+
+fn index_from_pos(pos: isize) -> usize {
+    (if pos < 0 { NUM_LED - pos.abs() as usize } else { pos as usize }) % NUM_LED
 }
