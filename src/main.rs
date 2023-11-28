@@ -32,8 +32,6 @@ use bsp::hal::{
     watchdog::Watchdog,
 };
 
-
-
 mod conf;
 mod led;
 mod ledstrip;
@@ -82,7 +80,7 @@ fn main() -> ! {
     let spi_pin_layout = (mosi, sclk);
 
     let mut spi = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
-        .init(&mut pac.RESETS, 125_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
+        .init(&mut pac.RESETS, 125_000_000u32.Hz(), 4_000_000u32.Hz(), MODE_0);
 
 
     // This is the correct pin on the Raspberry Pico board. On other boards, even if they have an
@@ -98,10 +96,11 @@ fn main() -> ! {
     let mut i: isize = 0;
     loop {
         led_strip.set_led(i, BLUE);
-        led_strip.set_led(i-1, BLACK);
+        //led_strip.set_led(i-1, BLACK);
+        led_strip.set_led_target(i-1, BLACK, 0.3);
         let _ = spi.write(led_strip.dump());
         //delay.delay_ms(1);
-        delay.delay_us(500);
+        delay.delay_ms(20);
         i = (i+1) % NUM_LED as isize;
         // info!("off!");
         // led_pin.set_low().unwrap();
