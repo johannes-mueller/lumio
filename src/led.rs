@@ -2,9 +2,9 @@ use rp_pico::hal::rom_data::float_funcs::float_to_uint;
 
 #[derive(Clone, Copy)]
 pub struct Color {
-    r: f32,
-    g: f32,
-    b: f32
+    pub r: f32,
+    pub g: f32,
+    pub b: f32
 }
 
 pub const BLUE: Color = Color { r: 0.0, g: 0.0, b: 1.0 };
