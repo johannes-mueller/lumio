@@ -1,4 +1,5 @@
 use rp_pico::hal::rom_data::float_funcs::float_to_uint;
+use libm::fabsf;
 
 #[derive(Clone, Copy)]
 pub struct Color {
@@ -11,6 +12,29 @@ pub const BLUE: Color = Color { r: 0.0, g: 0.0, b: 1.0 };
 pub const GREEN: Color = Color { r: 0.0, g: 1.0, b: 0.0 };
 pub const YELLOW: Color = Color { r: 1.0, g: 1.0, b: 0.0 };
 pub const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0 };
+
+impl Color {
+    pub fn from_hsv(h: f32, v: f32, s: f32) -> Color {
+        let c = v * s;
+
+        const N: f32 = 0.0;
+
+        let h6 = h*6.;
+        let x = c * (1. - fabsf(h6 % 2. - 1.));
+        let (r, g, b) = match h6 {
+            h if h >= 0.0 && h < 1.0 => (c, x, N),
+            h if h >= 1.0 && h < 2.0 => (x, c, N),
+            h if h >= 2.0 && h < 3.0 => (N, c, x),
+            h if h >= 3.0 && h < 4.0 => (N, x, c),
+            h if h >= 4.0 && h < 5.0 => (x, N, c),
+            h if h >= 5.0 && h <= 6.0 => (c, N, x),
+            _ => (N, N, N)
+        };
+
+        let m = v - c;
+        Color { r: r+m, g: g+m, b: b+m }
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct Led {
