@@ -83,7 +83,7 @@ fn main() -> ! {
     let spi_pin_layout = (mosi, sclk);
 
     let mut spi0 = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
-        .init(&mut pac.RESETS, 125_000_000u32.Hz(), 4_000_000u32.Hz(), MODE_0);
+        .init(&mut pac.RESETS, 450_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
 
 
     let sclk = pins.gpio14.into_function::<FunctionSpi>();
@@ -93,7 +93,7 @@ fn main() -> ! {
     let spi_pin_layout = (mosi, sclk);
 
     let mut spi1 = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
-        .init(&mut pac.RESETS, 125_000_000u32.Hz(), 4_000_000u32.Hz(), MODE_0);
+        .init(&mut pac.RESETS, 450_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
 
 
 
