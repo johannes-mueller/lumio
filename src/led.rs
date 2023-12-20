@@ -14,7 +14,7 @@ pub const YELLOW: Color = Color { r: 1.0, g: 1.0, b: 0.0 };
 pub const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0 };
 
 impl Color {
-    pub fn from_hsv(h: f32, v: f32, s: f32) -> Color {
+    pub fn from_hsv(h: f32, s: f32, v: f32) -> Color {
         let c = v * s;
 
         const N: f32 = 0.0;
@@ -68,6 +68,10 @@ impl Led {
     pub fn r(&self) -> u8 { round(self.current.r) }
     pub fn g(&self) -> u8 { round(self.current.g) }
     pub fn b(&self) -> u8 { round(self.current.b) }
+
+    pub fn is_off(&self) -> bool {
+        self.r() + self.g() + self.b() == 0
+    }
 }
 
 

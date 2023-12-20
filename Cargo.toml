@@ -9,6 +9,7 @@ cortex-m = "0.7"
 cortex-m-rt = "0.7"
 embedded-hal = { version = "0.2.5", features = ["unproven"] }
 libm = "0.2.8"
+rand = { version = "0.8.5", default-features = false, features = ["small_rng"]}
 
 defmt = "0.3"
 defmt-rtt = "0.4"

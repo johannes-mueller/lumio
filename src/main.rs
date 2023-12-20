@@ -38,10 +38,14 @@ use embedded_hal::digital::v2::OutputPin;
 mod conf;
 mod led;
 mod ledstrip;
+mod snake;
+mod random;
 
 use conf::NUM_LED;
 use ledstrip::LEDStrip;
 use led::{BLUE, YELLOW, BLACK, GREEN, Color};
+use snake::Snake;
+use random::Random;
 
 
 #[entry]
@@ -111,42 +115,32 @@ fn main() -> ! {
 
     let mut led_strip: LEDStrip = LEDStrip::new();
 
-    led_strip.set_led(NUM_LED as isize, YELLOW);
-    led_strip.set_led(NUM_LED as isize-2, YELLOW);
-    led_strip.set_led(NUM_LED as isize-4, YELLOW);
-    led_strip.set_led(NUM_LED as isize-6, YELLOW);
+    let mut random = Random::new(2495823494);
 
-    let mut i: isize = 0;
+    let mut snakes: [Snake; 12] = [Snake::default(); 12];
+    let strips: [usize; 12] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+    let mut running = false;
 
     loop {
-        led_strip.set_led(i+1, YELLOW);
-        led_strip.set_led(i, BLUE);
-        let nl = NUM_LED as isize;
-        //led_strip.set_led(i+nl/2, GREEN);
-        //led_strip.set_led(i-1+nl/2, BLACK);
-        //led_strip.set_led(i-1, BLACK);
-        //led_strip.set_led_target(i-1, BLACK, 0.3);
-        led_strip.set_led(i-1, Color { r: 0.1, g: 0.1, b: 0.1 });
+        if button_2_pin.is_high().unwrap() && !running {
+            for i in 0..12 {
+                snakes[i].reset(strips[i], random.value(), random.value());
+            }
+        } else {
+            running = true;
+            let _ = led_2_pin.set_high();
+        }
+        for sn in snakes.iter_mut() {
+            sn.process(&mut led_strip);
+        }
         let _ = spi1.write(led_strip.dump_0());
         let _ = spi0.write(led_strip.dump_1());
-        //let _ = spi0.write(&buf[NUM_LED/2..NUM_LED]);
-        //delay.delay_ms(1);
-        if button_1_pin.is_high().unwrap() {
-            let _ = led_1_pin.set_high();
-        } else {
-            let _ = led_1_pin.set_low();
-        }
-        if button_2_pin.is_high().unwrap() {
-            let _ = led_2_pin.set_high();
-        } else {
+        if snakes.iter().all(|&sn| !sn.is_active()) {
             let _ = led_2_pin.set_low();
+            running = false;
         }
         delay.delay_ms(1);
-        i = (i+1) % NUM_LED as isize;
-        // info!("off!");
-        // led_pin.set_low().unwrap();
-        // let _ = spi.write(&led_data);
-        // delay.delay_ms(500);
     }
 }
 
