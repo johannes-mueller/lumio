@@ -135,12 +135,12 @@ fn main() -> ! {
             sn.process(&mut led_strip);
         }
         let _ = spi1.write(led_strip.dump_0());
-        let _ = spi0.write(led_strip.dump_1());
+  //      let _ = spi0.write(led_strip.dump_1());
         if snakes.iter().all(|&sn| !sn.is_active()) {
             let _ = led_2_pin.set_low();
             running = false;
         }
-        delay.delay_ms(1);
+//        delay.delay_ms(1);
     }
 }
 

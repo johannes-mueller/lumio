@@ -9,13 +9,13 @@ pub struct Snake {
     head_color: Color,
     tail_color: Color,
     step: usize,
-    decay: f32,
+    decay: u8,
     done: bool
 }
 
 impl Default for Snake {
     fn default() -> Snake {
-        Snake { start_strip: 0, head_color: BLACK, tail_color: BLACK, step: 0, decay: 0.0, done: true }
+        Snake { start_strip: 0, head_color: BLACK, tail_color: BLACK, step: 0, decay: 0, done: true }
     }
 }
 
@@ -30,7 +30,7 @@ impl Snake {
         };
         self.tail_color = Color::from_hsv(th, 1.0, 0.4);
         self.step = 0;
-        self.decay = 0.3;
+        self.decay = 64;
         self.done = false;
     }
 

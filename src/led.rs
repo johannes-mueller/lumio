@@ -1,17 +1,19 @@
+use core::u16;
+
 use rp_pico::hal::rom_data::float_funcs::float_to_uint;
 use libm::fabsf;
 
 #[derive(Clone, Copy)]
 pub struct Color {
-    pub r: f32,
-    pub g: f32,
-    pub b: f32
+    pub r: u8,
+    pub g: u8,
+    pub b: u8
 }
 
-pub const BLUE: Color = Color { r: 0.0, g: 0.0, b: 1.0 };
-pub const GREEN: Color = Color { r: 0.0, g: 1.0, b: 0.0 };
-pub const YELLOW: Color = Color { r: 1.0, g: 1.0, b: 0.0 };
-pub const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0 };
+pub const BLUE: Color = Color { r: 0, g: 0, b: 255 };
+pub const GREEN: Color = Color { r: 0, g: 255, b: 0 };
+pub const YELLOW: Color = Color { r: 255, g: 255, b: 0 };
+pub const BLACK: Color = Color { r: 0, g: 0, b: 0 };
 
 impl Color {
     pub fn from_hsv(h: f32, s: f32, v: f32) -> Color {
@@ -32,7 +34,11 @@ impl Color {
         };
 
         let m = v - c;
-        Color { r: r+m, g: g+m, b: b+m }
+        Color {
+            r: float_to_uint((r+m) * 255.0) as u8,
+            g: float_to_uint((g+m) * 255.0) as u8,
+            b: float_to_uint((b+m) * 255.0) as u8,
+        }
     }
 }
 
@@ -40,40 +46,51 @@ impl Color {
 pub struct Led {
     current: Color,
     target: Color,
-    decay: f32
+    decay: u8
 }
 
 impl Led {
     pub fn new() -> Led {
-        Led { current: BLACK, target: BLACK, decay: 0.0 }
+        Led { current: BLACK, target: BLACK, decay: 0 }
     }
 
     pub fn set_color(&mut self, color: Color) {
         self.target = color;
         self.current = color;
-        self.decay = 0.0;
+        self.decay = 0;
     }
 
-    pub fn set_target(&mut self, color: Color, decay: f32) {
-        self.decay = decay;//.max(0.0).min(1.0);
+    pub fn set_target(&mut self, color: Color, decay: u8) {
+        self.decay = decay;
         self.target = color;
     }
 
     pub fn step(&mut self) {
-        self.current.r += (self.target.r - self.current.r) * self.decay;
-        self.current.g += (self.target.g - self.current.g) * self.decay;
-        self.current.b += (self.target.b - self.current.b) * self.decay;
+        self.current.r = decay(self.current.r, self.target.r, self.decay);
+        self.current.g = decay(self.current.g, self.target.g, self.decay);
+        self.current.b = decay(self.current.b, self.target.b, self.decay);
     }
 
-    pub fn r(&self) -> u8 { round(self.current.r) }
-    pub fn g(&self) -> u8 { round(self.current.g) }
-    pub fn b(&self) -> u8 { round(self.current.b) }
+    pub fn r(&self) -> u8 { self.current.r }
+    pub fn g(&self) -> u8 { self.current.g }
+    pub fn b(&self) -> u8 { self.current.b }
 
     pub fn is_off(&self) -> bool {
         self.r() + self.g() + self.b() == 0
     }
 }
 
+
+fn decay(current: u8, target: u8, decay: u8) -> u8 {
+    if target == current {
+        return target;
+    }
+    if target > current {
+        current + (((target - current) as u16 * decay as u16) >> 8).max(1) as u8
+    } else {
+        current - (((current - target) as u16 * decay as u16) >> 8).max(1) as u8
+    }
+}
 
 fn round(v: f32) -> u8 {
     if v >= 1.0 {

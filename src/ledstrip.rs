@@ -29,7 +29,7 @@ impl LEDStrip {
         self.leds[i].set_color(color);
     }
 
-    pub fn set_led_target(&mut self, pos: isize, color: Color, decay: f32) {
+    pub fn set_led_target(&mut self, pos: isize, color: Color, decay: u8) {
         let i = index_from_pos(pos);
         self.leds[i].set_target(color, decay);
     }
