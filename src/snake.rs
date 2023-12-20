@@ -24,7 +24,7 @@ impl Snake {
         self.start_strip = start_strip;
         self.head_color = Color::from_hsv(head_hue, 1.0, 1.0);
         let th = if head_hue > 1.0 - tail_hue_shift {
-            head_hue - tail_hue_shift
+            head_hue - (1.0 - tail_hue_shift)
         } else {
             head_hue + tail_hue_shift
         };
