@@ -52,6 +52,7 @@ use snake::Snake;
 use fire::Fire;
 use random::Random;
 
+const SNAKE_PROB: u8 = 32;
 
 #[entry]
 fn main() -> ! {
@@ -122,14 +123,51 @@ fn main() -> ! {
 
     let mut random = Random::new(2495823494);
 
-    let mut snakes: [Snake; 12] = [Snake::default(); 12];
+    let mut constant_snakes: [Snake; 12] = [Snake::default(); 12];
+    let mut random_snakes: [Snake; 12] = [Snake::default(); 12];
     let strips: [usize; 12] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
-    let mut running = false;
 
     let mut fire = Fire::new();
 
     loop {
+        let mut running = false;
+
+        loop {
+            if !running {
+                for i in 0..12 {
+                    constant_snakes[i].reset(strips[i], random.value(), 60./360.);
+                }
+            }
+            if button_2.is_pressed() {
+                let _ = led_2_pin.set_high();
+                running = true;
+            }
+             for sn in constant_snakes.iter_mut() {
+                sn.process(&mut led_strip);
+            }
+            let _ = spi1.write(led_strip.dump_0());
+            //      let _ = spi0.write(led_strip.dump_1());
+            if constant_snakes.iter().all(|&sn| !sn.is_active()) {
+                let _ = led_2_pin.set_low();
+                running = false;
+            }
+            if random.value8() < SNAKE_PROB {
+                let cand = random.value32(12) as usize;
+                if !random_snakes[cand].is_active() {
+                    random_snakes[cand].reset(cand, random.value(), 60./360.);
+                }
+            }
+            for sn in random_snakes.iter_mut() {
+                sn.process(&mut led_strip);
+            }
+            if button_1.is_pressed() {
+                led_strip.black();
+                break;
+            }
+            //        delay.delay_ms(1);
+        }
+
         loop {
             fire.process(&mut led_strip);
 
@@ -139,33 +177,6 @@ fn main() -> ! {
             }
             let _ = spi1.write(led_strip.dump_0());
         }
-
-        loop {
-            if button_2.is_pressed() && !running {
-                for i in 0..12 {
-                    snakes[i].reset(strips[i], random.value(), random.value());
-                }
-            } else {
-                running = true;
-                let _ = led_2_pin.set_high();
-            }
-            for sn in snakes.iter_mut() {
-                sn.process(&mut led_strip);
-            }
-            let _ = spi1.write(led_strip.dump_0());
-            //      let _ = spi0.write(led_strip.dump_1());
-            if snakes.iter().all(|&sn| !sn.is_active()) {
-                let _ = led_2_pin.set_low();
-                running = false;
-            }
-            if button_1.is_pressed() {
-                led_strip.black();
-                break;
-            }
-
-            //        delay.delay_ms(1);
-        }
-
     }
 }
 

@@ -20,13 +20,13 @@ impl Default for Snake {
 }
 
 impl Snake {
-    pub fn reset(&mut self, start_strip: usize, head_hue: f32, tail_hue: f32) {
+    pub fn reset(&mut self, start_strip: usize, head_hue: f32, tail_hue_shift: f32) {
         self.start_strip = start_strip;
         self.head_color = Color::from_hsv(head_hue, 1.0, 1.0);
-        let th = if head_hue > 0.5 {
-            head_hue - 0.5
+        let th = if head_hue > 1.0 - tail_hue_shift {
+            head_hue - tail_hue_shift
         } else {
-            head_hue + 0.5
+            head_hue + tail_hue_shift
         };
         self.tail_color = Color::from_hsv(th, 1.0, 0.4);
         self.step = 0;

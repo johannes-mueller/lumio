@@ -23,6 +23,9 @@ impl Random {
     }
 
     pub fn value32(&mut self, upper_limit: u32) -> u32 {
+        if upper_limit == 0 {
+            return 0u32;
+        }
         self.rng.next_u32() % upper_limit
     }
 
