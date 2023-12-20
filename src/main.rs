@@ -36,15 +36,18 @@ use embedded_hal::digital::v2::InputPin;
 use embedded_hal::digital::v2::OutputPin;
 
 mod conf;
+mod math8;
 mod led;
 mod ledstrip;
 mod snake;
 mod random;
+mod fire;
 
 use conf::NUM_LED;
 use ledstrip::LEDStrip;
 use led::{BLUE, YELLOW, BLACK, GREEN, Color};
 use snake::Snake;
+use fire::Fire;
 use random::Random;
 
 
@@ -121,6 +124,19 @@ fn main() -> ! {
     let strips: [usize; 12] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
     let mut running = false;
+
+    let mut fire = Fire::new();
+    loop {
+        fire.process(&mut led_strip);
+
+        if button_1_pin.is_low().unwrap() {
+            for i in 0..NUM_LED {
+                led_strip.set_led(i as isize, BLACK);
+            }
+            break;
+        }
+        let _ = spi1.write(led_strip.dump_0());
+    }
 
     loop {
         if button_2_pin.is_high().unwrap() && !running {

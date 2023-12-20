@@ -3,6 +3,8 @@ use core::u16;
 use rp_pico::hal::rom_data::float_funcs::float_to_uint;
 use libm::fabsf;
 
+use crate::math8::scale8;
+
 #[derive(Clone, Copy)]
 pub struct Color {
     pub r: u8,
@@ -39,6 +41,19 @@ impl Color {
             g: float_to_uint((g+m) * 255.0) as u8,
             b: float_to_uint((b+m) * 255.0) as u8,
         }
+    }
+
+    pub fn from_tempeature(temperature: u8) -> Color {
+        let t192 = scale8(temperature, 191);
+        let heatramp = (t192 & 0x3f) << 2;
+
+        if t192 & 0x80 != 0 {
+            return Color { r: 255, g: 255, b: heatramp }
+        }
+        if t192 & 0x40 != 0 {
+            return Color { r: 255, g: heatramp, b: 0 }
+        }
+        Color { r: heatramp, g: 0, b: 0 }
     }
 }
 
@@ -91,6 +106,7 @@ fn decay(current: u8, target: u8, decay: u8) -> u8 {
         current - (((current - target) as u16 * decay as u16) >> 8).max(1) as u8
     }
 }
+
 
 fn round(v: f32) -> u8 {
     if v >= 1.0 {

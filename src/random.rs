@@ -18,6 +18,14 @@ impl Random {
         self.rng.next_u32() as f32 / 0xffffffffu32 as f32
     }
 
+    pub fn value8(&mut self) -> u8 {
+        self.rng.next_u32() as u8
+    }
+
+    pub fn value32(&mut self, upper_limit: u32) -> u32 {
+        self.rng.next_u32() % upper_limit
+    }
+
     pub fn n_out_of_m<const M: usize, const N: usize>(&mut self) -> [usize; N] {
         let mut values = [M+1; N];
         for i in 0..N {
