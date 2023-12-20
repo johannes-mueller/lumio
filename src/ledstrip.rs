@@ -1,5 +1,5 @@
 use crate::conf::*;
-use crate::led::{Led, Color};
+use crate::led::{Led, Color, BLACK};
 
 const HALF: usize = NUM_LED / 2;
 const TAIL: usize = HALF / 11;
@@ -60,6 +60,12 @@ impl LEDStrip {
             led.step();
         }
         &self.bytes_1
+    }
+
+    pub fn black(&mut self) {
+        for led in self.leds.iter_mut() {
+            led.set_color(BLACK);
+        }
     }
 }
 

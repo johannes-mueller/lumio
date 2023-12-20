@@ -36,6 +36,7 @@ use embedded_hal::digital::v2::InputPin;
 use embedded_hal::digital::v2::OutputPin;
 
 mod conf;
+mod button;
 mod math8;
 mod led;
 mod ledstrip;
@@ -44,6 +45,7 @@ mod random;
 mod fire;
 
 use conf::NUM_LED;
+use button::Button;
 use ledstrip::LEDStrip;
 use led::{BLUE, YELLOW, BLACK, GREEN, Color};
 use snake::Snake;
@@ -104,8 +106,8 @@ fn main() -> ! {
 
 
 
-    let button_1_pin = pins.gpio21.into_pull_up_input();
-    let button_2_pin = pins.gpio20.into_pull_up_input();
+    let mut button_1 = Button::new(pins.gpio21.into_pull_up_input());
+    let mut button_2 = Button::new(pins.gpio20.into_pull_up_input());
     let mut led_1_pin = pins.gpio10.into_push_pull_output();
     let mut led_2_pin = pins.gpio11.into_push_pull_output();
     // This is the correct pin on the Raspberry Pico board. On other boards, even if they have an
@@ -126,37 +128,44 @@ fn main() -> ! {
     let mut running = false;
 
     let mut fire = Fire::new();
-    loop {
-        fire.process(&mut led_strip);
-
-        if button_1_pin.is_low().unwrap() {
-            for i in 0..NUM_LED {
-                led_strip.set_led(i as isize, BLACK);
-            }
-            break;
-        }
-        let _ = spi1.write(led_strip.dump_0());
-    }
 
     loop {
-        if button_2_pin.is_high().unwrap() && !running {
-            for i in 0..12 {
-                snakes[i].reset(strips[i], random.value(), random.value());
+        loop {
+            fire.process(&mut led_strip);
+
+            if button_1.is_pressed() {
+                led_strip.black();
+                break;
             }
-        } else {
-            running = true;
-            let _ = led_2_pin.set_high();
+            let _ = spi1.write(led_strip.dump_0());
         }
-        for sn in snakes.iter_mut() {
-            sn.process(&mut led_strip);
+
+        loop {
+            if button_2.is_pressed() && !running {
+                for i in 0..12 {
+                    snakes[i].reset(strips[i], random.value(), random.value());
+                }
+            } else {
+                running = true;
+                let _ = led_2_pin.set_high();
+            }
+            for sn in snakes.iter_mut() {
+                sn.process(&mut led_strip);
+            }
+            let _ = spi1.write(led_strip.dump_0());
+            //      let _ = spi0.write(led_strip.dump_1());
+            if snakes.iter().all(|&sn| !sn.is_active()) {
+                let _ = led_2_pin.set_low();
+                running = false;
+            }
+            if button_1.is_pressed() {
+                led_strip.black();
+                break;
+            }
+
+            //        delay.delay_ms(1);
         }
-        let _ = spi1.write(led_strip.dump_0());
-  //      let _ = spi0.write(led_strip.dump_1());
-        if snakes.iter().all(|&sn| !sn.is_active()) {
-            let _ = led_2_pin.set_low();
-            running = false;
-        }
-//        delay.delay_ms(1);
+
     }
 }
 
