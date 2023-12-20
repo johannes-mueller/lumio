@@ -43,13 +43,15 @@ mod ledstrip;
 mod snake;
 mod random;
 mod fire;
+mod stars;
 
 use conf::NUM_LED;
+use led::{WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
 use button::Button;
 use ledstrip::LEDStrip;
-use led::{BLUE, YELLOW, BLACK, GREEN, Color};
 use snake::Snake;
 use fire::Fire;
+use stars::Stars;
 use random::Random;
 
 const SNAKE_PROB: u8 = 32;
@@ -129,6 +131,9 @@ fn main() -> ! {
 
 
     let mut fire = Fire::new();
+    let mut eu_stars = Stars::new(DARK_BLUE, YELLOW);
+    let mut eo_stars = Stars::new(DARK_GREEN, WHITE);
+
 
     loop {
         let mut running = false;
@@ -166,6 +171,28 @@ fn main() -> ! {
                 break;
             }
             //        delay.delay_ms(1);
+        }
+
+        eu_stars.reset(&mut led_strip);
+        loop {
+            eu_stars.process(&mut led_strip);
+            let _ = spi1.write(led_strip.dump_0());
+
+            if button_1.is_pressed() {
+                led_strip.black();
+                break;
+            }
+        }
+
+        eo_stars.reset(&mut led_strip);
+        loop {
+            eo_stars.process(&mut led_strip);
+            let _ = spi1.write(led_strip.dump_0());
+
+            if button_1.is_pressed() {
+                led_strip.black();
+                break;
+            }
         }
 
         loop {

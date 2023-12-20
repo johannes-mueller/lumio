@@ -12,10 +12,14 @@ pub struct Color {
     pub b: u8
 }
 
+pub const WHITE: Color = Color { r: 255, g: 255, b: 255 };
 pub const BLUE: Color = Color { r: 0, g: 0, b: 255 };
 pub const GREEN: Color = Color { r: 0, g: 255, b: 0 };
 pub const YELLOW: Color = Color { r: 255, g: 255, b: 0 };
 pub const BLACK: Color = Color { r: 0, g: 0, b: 0 };
+pub const DARK_BLUE: Color = Color { r: 0, g: 0, b: 16 };
+pub const DARK_GREEN: Color = Color { r: 0, g: 16, b: 0 };
+
 
 impl Color {
     pub fn from_hsv(h: f32, s: f32, v: f32) -> Color {
