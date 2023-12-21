@@ -24,7 +24,7 @@ use embedded_hal::blocking::spi::Write;
 use fugit::RateExtU32;
 
 use bsp::hal::{
-    clocks::{init_clocks_and_plls, Clock},
+    clocks::init_clocks_and_plls,
     pac,
     sio::Sio,
     spi::Spi,
@@ -32,7 +32,6 @@ use bsp::hal::{
     watchdog::Watchdog,
 };
 
-use embedded_hal::digital::v2::InputPin;
 use embedded_hal::digital::v2::OutputPin;
 
 mod conf;
@@ -63,7 +62,7 @@ fn main() -> ! {
 
     info!("Program start");
     let mut pac = pac::Peripherals::take().unwrap();
-    let core = pac::CorePeripherals::take().unwrap();
+    let _core = pac::CorePeripherals::take().unwrap();
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
     let sio = Sio::new(pac.SIO);
 
@@ -81,8 +80,8 @@ fn main() -> ! {
     .ok()
     .unwrap();
 
-    let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
-    let mut timer = bsp::hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
+    //let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
+    let timer = bsp::hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
 
     let pins = bsp::Pins::new(
         pac.IO_BANK0,
@@ -91,14 +90,14 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
-    let sclk = pins.gpio18.into_function::<FunctionSpi>();
-    let mosi = pins.gpio19.into_function::<FunctionSpi>();
+    // let sclk = pins.gpio18.into_function::<FunctionSpi>();
+    // let mosi = pins.gpio19.into_function::<FunctionSpi>();
 
-    let spi_device = pac.SPI0;
-    let spi_pin_layout = (mosi, sclk);
+    // let spi_device = pac.SPI0;
+    // let spi_pin_layout = (mosi, sclk);
 
-    let mut spi0 = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
-        .init(&mut pac.RESETS, 450_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
+    // let mut spi0 = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
+    //     .init(&mut pac.RESETS, 450_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
 
 
     let sclk = pins.gpio14.into_function::<FunctionSpi>();
@@ -110,16 +109,10 @@ fn main() -> ! {
     let mut spi1 = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
         .init(&mut pac.RESETS, 450_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
 
-    let mut button_1 = Button::new(pins.gpio21.into_pull_up_input(), &timer);
+    let button_1 = Button::new(pins.gpio21.into_pull_up_input(), &timer);
     let mut button_2 = Button::new(pins.gpio20.into_pull_up_input(), &timer);
-    let mut led_1_pin = pins.gpio10.into_push_pull_output();
+    let led_1_pin = pins.gpio10.into_push_pull_output();
     let mut led_2_pin = pins.gpio11.into_push_pull_output();
-    // This is the correct pin on the Raspberry Pico board. On other boards, even if they have an
-    // on-board LED, it might need to be changed.
-    // Notably, on the Pico W, the LED is not connected to any of the RP2040 GPIOs but to the cyw43 module instead. If you have
-    // a Pico W and want to toggle a LED with a simple GPIO output pin, you can connect an external
-    // LED to one of the GPIO pins, and reference that pin here.
-    // let mut led_pin = pins.led.into_push_pull_output();
 
 
     let mut led_strip: LEDStrip = LEDStrip::new();
@@ -133,9 +126,6 @@ fn main() -> ! {
     let mut fire = Fire::new();
     let mut eu_stars = Stars::new(DARK_BLUE, YELLOW);
     let mut eo_stars = Stars::new(DARK_GREEN, WHITE);
-
-
-    let mut past = timer.get_counter_low();
 
     let mut showtimer = ShowTimer::new(button_1, led_1_pin, &timer);
 

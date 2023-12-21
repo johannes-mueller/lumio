@@ -34,10 +34,6 @@ impl LEDStrip {
         self.leds[i].set_target(color, decay);
     }
 
-    pub fn led(&self, pos: usize) -> &Led {
-        &self.leds[pos]
-    }
-
     pub fn dump_0(&mut self) -> &[u8; DATA_SIZE] {
         for i in 0..HALF {
             let led = &mut self.leds[i];

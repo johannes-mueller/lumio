@@ -1,7 +1,6 @@
 use crate::{random, ledstrip::LEDStrip, led::Color};
 
 const NUM_LED: usize = 720;
-const NUM_STARS: usize = 36;
 const NOVA_PROB: u8 = 32;
 
 pub struct Stars {
@@ -12,8 +11,11 @@ pub struct Stars {
 
 impl Stars {
     pub fn new(sky_color: Color, star_color: Color) -> Stars {
-        let mut random = random::Random::new(4023749823);
-        Stars { sky_color, star_color, random }
+        Stars {
+            sky_color,
+            star_color,
+            random: random::Random::new(4023749823)
+        }
     }
 
     pub fn reset(&mut self, led_strip: &mut LEDStrip) {

@@ -1,5 +1,3 @@
-use core::u16;
-
 use rp_pico::hal::rom_data::float_funcs::float_to_uint;
 use libm::fabsf;
 
@@ -93,10 +91,6 @@ impl Led {
     pub fn r(&self) -> u8 { self.current.r }
     pub fn g(&self) -> u8 { self.current.g }
     pub fn b(&self) -> u8 { self.current.b }
-
-    pub fn is_off(&self) -> bool {
-        self.r() + self.g() + self.b() == 0
-    }
 }
 
 
@@ -109,15 +103,4 @@ fn decay(current: u8, target: u8, decay: u8) -> u8 {
     } else {
         current - (((current - target) as u16 * decay as u16) >> 8).max(1) as u8
     }
-}
-
-
-fn round(v: f32) -> u8 {
-    if v >= 1.0 {
-        return 255;
-    }
-    if v <= 0.0 {
-        return 0;
-    }
-    float_to_uint(v * 255.0) as u8
 }
