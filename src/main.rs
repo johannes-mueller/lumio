@@ -37,6 +37,7 @@ use embedded_hal::digital::v2::OutputPin;
 
 mod conf;
 mod button;
+mod showtimer;
 mod math8;
 mod led;
 mod ledstrip;
@@ -53,9 +54,9 @@ use snake::Snake;
 use fire::Fire;
 use stars::Stars;
 use random::Random;
+use showtimer::ShowTimer;
 
 const SNAKE_PROB: u8 = 32;
-const AUTO_SHOW_DELAY: u32 = 3_000_000;
 
 
 #[entry]
@@ -135,10 +136,10 @@ fn main() -> ! {
     let mut eu_stars = Stars::new(DARK_BLUE, YELLOW);
     let mut eo_stars = Stars::new(DARK_GREEN, WHITE);
 
-    let mut auto_show = false;
-    let mut do_next = false;
 
     let mut past = timer.get_counter_low();
+
+    let mut showtimer = ShowTimer::new(button_1, led_1_pin, &timer);
 
     loop {
         let mut running = false;
@@ -171,23 +172,8 @@ fn main() -> ! {
             for sn in random_snakes.iter_mut() {
                 sn.process(&mut led_strip);
             }
-            match button_1.state(&timer) {
-                ButtonState::ShortPressed => { do_next = true; },
-                ButtonState::LongPressed => { auto_show = !auto_show },
-                _ => {}
-            }
-            if auto_show {
-                let _ = led_1_pin.set_high();
-                let now = timer.get_counter_low();
-                if now - past > AUTO_SHOW_DELAY {
-                    past = now;
-                    do_next = true;
-                }
-            } else {
-                let _ = led_1_pin.set_low();
-            }
-            if do_next {
-                do_next = false;
+
+            if showtimer.do_next() {
                 led_strip.black();
                 break;
             }
@@ -199,23 +185,7 @@ fn main() -> ! {
             eu_stars.process(&mut led_strip);
             let _ = spi1.write(led_strip.dump_0());
 
-            match button_1.state(&timer) {
-                ButtonState::ShortPressed => { do_next = true },
-                ButtonState::LongPressed => { auto_show = !auto_show;; },
-                _ => {}
-            }
-            if auto_show {
-                let _ = led_1_pin.set_high();
-                let now = timer.get_counter_low();
-                if now - past > AUTO_SHOW_DELAY {
-                    past = now;
-                    do_next = true;
-                }
-            } else {
-                let _ = led_1_pin.set_low();
-            }
-            if do_next {
-                do_next = false;
+            if showtimer.do_next() {
                 led_strip.black();
                 break;
             }
@@ -226,23 +196,7 @@ fn main() -> ! {
             eo_stars.process(&mut led_strip);
             let _ = spi1.write(led_strip.dump_0());
 
-            match button_1.state(&timer) {
-                ButtonState::ShortPressed => { do_next = true; },
-                ButtonState::LongPressed => { auto_show = !auto_show; }
-                _ => {}
-            }
-            if auto_show {
-                let _ = led_1_pin.set_high();
-                let now = timer.get_counter_low();
-                if now - past > AUTO_SHOW_DELAY {
-                    past = now;
-                    do_next = true;
-                }
-            } else {
-                let _ = led_1_pin.set_low();
-            }
-            if do_next {
-                do_next = false;
+            if showtimer.do_next() {
                 led_strip.black();
                 break;
             }
@@ -252,23 +206,7 @@ fn main() -> ! {
             fire.process(&mut led_strip);
             let _ = spi1.write(led_strip.dump_0());
 
-            match button_1.state(&timer) {
-                ButtonState::ShortPressed => { do_next = true; },
-                ButtonState::LongPressed => { auto_show = !auto_show; }
-                _ => {}
-            }
-            if auto_show {
-                let _ = led_1_pin.set_high();
-                let now = timer.get_counter_low();
-                if now - past > AUTO_SHOW_DELAY {
-                    past = now;
-                    do_next = true;
-                }
-            } else {
-                let _ = led_1_pin.set_low();
-            }
-            if do_next {
-                do_next = false;
+            if showtimer.do_next() {
                 led_strip.black();
                 break;
             }
