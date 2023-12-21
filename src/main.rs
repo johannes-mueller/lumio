@@ -46,7 +46,7 @@ mod random;
 mod fire;
 mod stars;
 
-use conf::NUM_LED;
+use conf::SNAKE_PROB;
 use led::{WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
 use button::{Button, ButtonState};
 use ledstrip::LEDStrip;
@@ -56,7 +56,6 @@ use stars::Stars;
 use random::Random;
 use showtimer::ShowTimer;
 
-const SNAKE_PROB: u8 = 32;
 
 
 #[entry]
