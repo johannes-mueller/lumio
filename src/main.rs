@@ -24,7 +24,7 @@ use embedded_hal::blocking::spi::Write;
 use fugit::RateExtU32;
 
 use bsp::hal::{
-    clocks::init_clocks_and_plls,
+    clocks::{init_clocks_and_plls, Clock},
     pac,
     sio::Sio,
     spi::Spi,
@@ -44,6 +44,7 @@ mod snake;
 mod random;
 mod fire;
 mod stars;
+mod spiral;
 
 use conf::SNAKE_PROB;
 use led::{WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
@@ -52,6 +53,7 @@ use ledstrip::LEDStrip;
 use snake::Snake;
 use fire::Fire;
 use stars::Stars;
+use spiral::Spiral;
 use random::Random;
 use showtimer::ShowTimer;
 
@@ -62,7 +64,7 @@ fn main() -> ! {
 
     info!("Program start");
     let mut pac = pac::Peripherals::take().unwrap();
-    let _core = pac::CorePeripherals::take().unwrap();
+    let core = pac::CorePeripherals::take().unwrap();
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
     let sio = Sio::new(pac.SIO);
 
@@ -80,7 +82,7 @@ fn main() -> ! {
     .ok()
     .unwrap();
 
-    //let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
+    let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
     let timer = bsp::hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
 
     let pins = bsp::Pins::new(
@@ -126,10 +128,23 @@ fn main() -> ! {
     let mut fire = Fire::new();
     let mut eu_stars = Stars::new(DARK_BLUE, YELLOW);
     let mut eo_stars = Stars::new(DARK_GREEN, WHITE);
+    let mut spiral = Spiral::new(5);
 
     let mut showtimer = ShowTimer::new(button_1, led_1_pin, &timer);
 
     loop {
+
+        loop {
+            led_strip.black();
+            spiral.process(&mut led_strip);
+            let _ = spi1.write(led_strip.dump_0());
+            if showtimer.do_next() {
+                led_strip.black();
+                break;
+            }
+            delay.delay_ms(50);
+        }
+
         let mut running = false;
 
         loop {

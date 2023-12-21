@@ -3,7 +3,7 @@ use libm::fabsf;
 
 use crate::math8::scale8;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
@@ -91,6 +91,8 @@ impl Led {
     pub fn r(&self) -> u8 { self.current.r }
     pub fn g(&self) -> u8 { self.current.g }
     pub fn b(&self) -> u8 { self.current.b }
+
+    pub fn current(&self) -> Color { self.current }
 }
 
 
