@@ -45,6 +45,7 @@ mod random;
 mod fire;
 mod stars;
 mod spiral;
+mod huewave;
 
 use conf::SNAKE_PROB;
 use led::{WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
@@ -54,6 +55,7 @@ use snake::Snake;
 use fire::Fire;
 use stars::Stars;
 use spiral::Spiral;
+use huewave::HueWave;
 use random::Random;
 use showtimer::ShowTimer;
 
@@ -129,20 +131,21 @@ fn main() -> ! {
     let mut eu_stars = Stars::new(DARK_BLUE, YELLOW);
     let mut eo_stars = Stars::new(DARK_GREEN, WHITE);
     let mut spiral = Spiral::new(5);
+    let mut huewave = HueWave::new();
 
     let mut showtimer = ShowTimer::new(button_1, led_1_pin, &timer);
 
     loop {
 
         loop {
-            led_strip.black();
+            huewave.process(&mut led_strip);
             spiral.process(&mut led_strip);
             let _ = spi1.write(led_strip.dump_0());
             if showtimer.do_next() {
                 led_strip.black();
                 break;
             }
-            delay.delay_ms(50);
+//            delay.delay_ms(50);
         }
 
         let mut running = false;
