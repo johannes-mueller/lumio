@@ -47,7 +47,7 @@ mod stars;
 
 use conf::NUM_LED;
 use led::{WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
-use button::Button;
+use button::{Button, ButtonState};
 use ledstrip::LEDStrip;
 use snake::Snake;
 use fire::Fire;
@@ -55,6 +55,8 @@ use stars::Stars;
 use random::Random;
 
 const SNAKE_PROB: u8 = 32;
+const AUTO_SHOW_DELAY: u32 = 3_000_000;
+
 
 #[entry]
 fn main() -> ! {
@@ -80,6 +82,7 @@ fn main() -> ! {
     .unwrap();
 
     let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
+    let mut timer = bsp::hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
 
     let pins = bsp::Pins::new(
         pac.IO_BANK0,
@@ -108,7 +111,6 @@ fn main() -> ! {
         .init(&mut pac.RESETS, 450_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
 
 
-
     let mut button_1 = Button::new(pins.gpio21.into_pull_up_input());
     let mut button_2 = Button::new(pins.gpio20.into_pull_up_input());
     let mut led_1_pin = pins.gpio10.into_push_pull_output();
@@ -129,11 +131,14 @@ fn main() -> ! {
     let mut random_snakes: [Snake; 12] = [Snake::default(); 12];
     let strips: [usize; 12] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
-
     let mut fire = Fire::new();
     let mut eu_stars = Stars::new(DARK_BLUE, YELLOW);
     let mut eo_stars = Stars::new(DARK_GREEN, WHITE);
 
+    let mut auto_show = false;
+    let mut do_next = false;
+
+    let mut past = timer.get_counter_low();
 
     loop {
         let mut running = false;
@@ -144,7 +149,7 @@ fn main() -> ! {
                     constant_snakes[i].reset(strips[i], random.value(), 60./360.);
                 }
             }
-            if button_2.is_pressed() {
+            if button_2.state(&timer) == ButtonState::ShortPressed {
                 let _ = led_2_pin.set_high();
                 running = true;
             }
@@ -166,7 +171,23 @@ fn main() -> ! {
             for sn in random_snakes.iter_mut() {
                 sn.process(&mut led_strip);
             }
-            if button_1.is_pressed() {
+            match button_1.state(&timer) {
+                ButtonState::ShortPressed => { do_next = true; },
+                ButtonState::LongPressed => { auto_show = !auto_show },
+                _ => {}
+            }
+            if auto_show {
+                let _ = led_1_pin.set_high();
+                let now = timer.get_counter_low();
+                if now - past > AUTO_SHOW_DELAY {
+                    past = now;
+                    do_next = true;
+                }
+            } else {
+                let _ = led_1_pin.set_low();
+            }
+            if do_next {
+                do_next = false;
                 led_strip.black();
                 break;
             }
@@ -178,7 +199,23 @@ fn main() -> ! {
             eu_stars.process(&mut led_strip);
             let _ = spi1.write(led_strip.dump_0());
 
-            if button_1.is_pressed() {
+            match button_1.state(&timer) {
+                ButtonState::ShortPressed => { do_next = true },
+                ButtonState::LongPressed => { auto_show = !auto_show;; },
+                _ => {}
+            }
+            if auto_show {
+                let _ = led_1_pin.set_high();
+                let now = timer.get_counter_low();
+                if now - past > AUTO_SHOW_DELAY {
+                    past = now;
+                    do_next = true;
+                }
+            } else {
+                let _ = led_1_pin.set_low();
+            }
+            if do_next {
+                do_next = false;
                 led_strip.black();
                 break;
             }
@@ -189,7 +226,23 @@ fn main() -> ! {
             eo_stars.process(&mut led_strip);
             let _ = spi1.write(led_strip.dump_0());
 
-            if button_1.is_pressed() {
+            match button_1.state(&timer) {
+                ButtonState::ShortPressed => { do_next = true; },
+                ButtonState::LongPressed => { auto_show = !auto_show; }
+                _ => {}
+            }
+            if auto_show {
+                let _ = led_1_pin.set_high();
+                let now = timer.get_counter_low();
+                if now - past > AUTO_SHOW_DELAY {
+                    past = now;
+                    do_next = true;
+                }
+            } else {
+                let _ = led_1_pin.set_low();
+            }
+            if do_next {
+                do_next = false;
                 led_strip.black();
                 break;
             }
@@ -197,12 +250,28 @@ fn main() -> ! {
 
         loop {
             fire.process(&mut led_strip);
+            let _ = spi1.write(led_strip.dump_0());
 
-            if button_1.is_pressed() {
+            match button_1.state(&timer) {
+                ButtonState::ShortPressed => { do_next = true; },
+                ButtonState::LongPressed => { auto_show = !auto_show; }
+                _ => {}
+            }
+            if auto_show {
+                let _ = led_1_pin.set_high();
+                let now = timer.get_counter_low();
+                if now - past > AUTO_SHOW_DELAY {
+                    past = now;
+                    do_next = true;
+                }
+            } else {
+                let _ = led_1_pin.set_low();
+            }
+            if do_next {
+                do_next = false;
                 led_strip.black();
                 break;
             }
-            let _ = spi1.write(led_strip.dump_0());
         }
     }
 }
