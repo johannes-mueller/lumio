@@ -110,9 +110,8 @@ fn main() -> ! {
     let mut spi1 = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
         .init(&mut pac.RESETS, 450_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
 
-
-    let mut button_1 = Button::new(pins.gpio21.into_pull_up_input());
-    let mut button_2 = Button::new(pins.gpio20.into_pull_up_input());
+    let mut button_1 = Button::new(pins.gpio21.into_pull_up_input(), &timer);
+    let mut button_2 = Button::new(pins.gpio20.into_pull_up_input(), &timer);
     let mut led_1_pin = pins.gpio10.into_push_pull_output();
     let mut led_2_pin = pins.gpio11.into_push_pull_output();
     // This is the correct pin on the Raspberry Pico board. On other boards, even if they have an
@@ -149,7 +148,7 @@ fn main() -> ! {
                     constant_snakes[i].reset(strips[i], random.value(), 60./360.);
                 }
             }
-            if button_2.state(&timer) == ButtonState::ShortPressed {
+            if button_2.state() == ButtonState::ShortPressed {
                 let _ = led_2_pin.set_high();
                 running = true;
             }

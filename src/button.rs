@@ -12,39 +12,41 @@ pub enum ButtonState {
     LongPressed
 }
 
-pub struct Button<P: PinId> {
+pub struct Button<'a, P: PinId> {
     pin: Pin<P, FunctionSio<SioInput>, PullUp>,
     press_time: Option<Instant>,
-    state: ButtonState
+    state: ButtonState,
+    timer: &'a Timer
 }
 
-impl<P: PinId> Button<P> {
-    pub fn new(pin: Pin<P, FunctionSio<SioInput>, PullUp>) -> Button<P> {
+impl<'a, P: PinId> Button<'a, P> {
+    pub fn new(pin: Pin<P, FunctionSio<SioInput>, PullUp>, timer: &'a Timer) -> Button<'a, P> {
         Button {
             pin,
             press_time: None,
-            state: ButtonState::Up
+            state: ButtonState::Up,
+            timer
         }
     }
 
-    pub fn state(&mut self, timer: &Timer) -> ButtonState {
-        self.state = self.determine_state(timer);
+    pub fn state(&mut self) -> ButtonState {
+        self.state = self.determine_state();
         self.state
     }
 
-    fn determine_state(&mut self, timer: &Timer) -> ButtonState {
+    fn determine_state(&mut self) -> ButtonState {
         let (press_time, state) = if self.pin.is_low().unwrap() {
             self.press_time.map_or_else(
                 || (
                     if self.state == ButtonState::Up {
-                        Some(timer.get_counter())
+                        Some(self.timer.get_counter())
                     } else {
                         self.press_time
                     },
                     ButtonState::Down
                 ),
                 |past| {
-                    if timer.get_counter() - past > LONG_PRESS_TIME && self.state != ButtonState::LongPressed {
+                    if self.timer.get_counter() - past > LONG_PRESS_TIME && self.state != ButtonState::LongPressed {
                         (None, ButtonState::LongPressed)
                     } else {
                         (self.press_time, ButtonState::Down)

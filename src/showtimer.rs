@@ -8,21 +8,21 @@ use crate::conf::AUTO_SHOW_DELAY;
 
 pub struct ShowTimer<'a, BP: PinId, LP: PinId> {
     auto_show: bool,
-    button: Button<BP>,
+    button: Button<'a, BP>,
     led_pin: Pin<LP, FunctionSio<SioOutput>, PullDown>,
     time_stamp: Instant,
     timer: &'a Timer,
 }
 
 impl <'a, BP: PinId, LP: PinId> ShowTimer<'a, BP, LP> {
-    pub fn new(button: Button<BP>, led_pin: Pin<LP, FunctionSio<SioOutput>, PullDown>, timer: &'a Timer) -> ShowTimer<'a, BP, LP> {
+    pub fn new(button: Button<'a, BP>, led_pin: Pin<LP, FunctionSio<SioOutput>, PullDown>, timer: &'a Timer) -> ShowTimer<'a, BP, LP> {
         let time_stamp = timer.get_counter();
         ShowTimer { auto_show: false, button, led_pin, time_stamp, timer }
     }
 
     pub fn do_next(&mut self) -> bool {
         let mut do_next = false;
-        match self.button.state(self.timer) {
+        match self.button.state() {
             ButtonState::ShortPressed => { do_next = true; },
             ButtonState::LongPressed => { self.auto_show = !self.auto_show },
             _ => {}
