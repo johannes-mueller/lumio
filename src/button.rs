@@ -51,16 +51,7 @@ impl<P: PinId> Button<P> {
         } else  {
             self.press_time.map_or_else(
                 || (None, ButtonState::Up),
-                |past| {
-                    (
-                        None,
-                        if timer.get_counter_low() - past > 2000000 {
-                            ButtonState::Up
-                        } else {
-                            ButtonState::ShortPressed
-                        }
-                    )
-                }
+                |_| (None, ButtonState::ShortPressed)
             )
         };
         self.press_time = press_time;
