@@ -1,6 +1,4 @@
-use crate::{ledstrip::LEDStrip, conf::STRIP_LENGTH, led::{WHITE, BLACK}};
-
-//const STRIP_LENGTH: isize = conf::STRIP_LENGTH as isize;
+use crate::{ledstrip::LEDStrip, conf::STRIP_LENGTH, led::WHITE};
 
 pub struct Spiral {
     start_strip: usize,

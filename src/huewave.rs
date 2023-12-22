@@ -18,10 +18,7 @@ impl HueWave {
                 let pos = (x * STRIP_LENGTH + y) as isize;
                 led_strip.set_led(pos, Color::from_hsv(hue, 1.0, 0.03));
             }
-            hue += HUE_STEP;
-            if hue > 1.0 {
-                hue -= 1.0
-            }
+            hue = (hue + HUE_STEP) % 1.0;
         }
         self.step = (self.step + 1) % STRIP_LENGTH;
     }
