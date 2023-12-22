@@ -1,5 +1,6 @@
 use crate::conf::*;
 use crate::led::{Led, Color, BLACK};
+use crate::random::Random;
 
 const HALF: usize = NUM_LED / 2;
 const TAIL: usize = HALF / 11;
@@ -8,7 +9,8 @@ const DATA_SIZE: usize = HALF*4+4+TAIL;
 pub struct LEDStrip {
     bytes_0: [u8; DATA_SIZE],
     bytes_1: [u8; DATA_SIZE],
-    leds: [Led; NUM_LED]
+    leds: [Led; NUM_LED],
+    random: Random
 }
 
 
@@ -21,7 +23,7 @@ impl LEDStrip {
             bytes_1[i] = 0xff;
         }
         let leds = [Led::new(); NUM_LED];
-        LEDStrip { bytes_0, bytes_1, leds }
+        LEDStrip { bytes_0, bytes_1, leds, random: Random::new(423234098) }
     }
 
     pub fn set_led(&mut self, pos: isize, color: Color) {
@@ -38,6 +40,10 @@ impl LEDStrip {
         &self.leds[pos]
     }
 
+    pub fn led_mut(&mut self, pos: usize) -> &mut Led {
+        &mut self.leds[pos]
+    }
+
     pub fn dump_0(&mut self) -> &[u8; DATA_SIZE] {
         for i in 0..HALF {
             let led = &mut self.leds[i];
@@ -45,7 +51,7 @@ impl LEDStrip {
             self.bytes_0[4+i*4+1] = led.b();
             self.bytes_0[4+i*4+2] = led.g();
             self.bytes_0[4+i*4+3] = led.r();
-            led.step();
+            led.step(&mut self.random);
         }
         &self.bytes_0
     }
@@ -57,7 +63,7 @@ impl LEDStrip {
             self.bytes_1[4+i*4+1] = led.b();
             self.bytes_1[4+i*4+2] = led.g();
             self.bytes_1[4+i*4+3] = led.r();
-            led.step();
+            led.step(&mut self.random);
         }
         &self.bytes_1
     }

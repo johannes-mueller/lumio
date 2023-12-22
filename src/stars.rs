@@ -28,7 +28,7 @@ impl Stars {
         if self.random.value8() < NOVA_PROB {
             let pos = self.random.value32(NUM_LED as u32) as usize;
             led_strip.set_led(pos as isize, self.star_color);
-            led_strip.set_led_target(pos as isize, self.sky_color, 2);
+            led_strip.led_mut(pos).set_target_flickering(self.sky_color, 2, 96);
         }
     }
 }
