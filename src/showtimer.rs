@@ -24,7 +24,10 @@ impl <'a, BP: PinId, LP: PinId> ShowTimer<'a, BP, LP> {
         let mut do_next = false;
         match self.button.state() {
             ButtonState::ShortPressed => { do_next = true; },
-            ButtonState::LongPressed => { self.auto_show = !self.auto_show },
+            ButtonState::LongPressed => {
+                self.auto_show = !self.auto_show;
+                self.time_stamp = self.timer.get_counter();
+            },
             _ => {}
         }
         if self.auto_show {
