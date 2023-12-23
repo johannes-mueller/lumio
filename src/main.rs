@@ -160,7 +160,7 @@ fn main() -> ! {
                 let _ = led_2_pin.set_high();
                 running = true;
             }
-             for sn in constant_snakes.iter_mut() {
+            for sn in constant_snakes.iter_mut() {
                 sn.process(&mut led_strip);
             }
             let _ = spi1.write(led_strip.dump_0());
