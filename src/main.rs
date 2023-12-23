@@ -181,6 +181,7 @@ fn main() -> ! {
 
             if showtimer.do_next() {
                 led_strip.black();
+                let _ = led_2_pin.set_low();
                 break;
             }
             //        delay.delay_ms(1);
