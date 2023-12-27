@@ -1,4 +1,4 @@
-# A LEDstrip flower for the RP-Pico 2040
+# A LED strip flower for the RP-Pico 2040
 
 This is a bad weather afternoon hack during last November that I did to
 decorate [our Esperanto assembly](https://events.ccc.de/congress/2023/hub/en/assembly/esperanto/)
