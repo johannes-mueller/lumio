@@ -27,7 +27,7 @@ I've chosen the RP-2040 for the project for two reasons.
   out I have not experienced logic voltage issues – well maybe some small ones.
 
 The LED strips are made of APA102 LEDs.  They work quite well with the SPI
-busses of the RP-2040.  The APA102s are so called 4-wire addressable LEDs.  Two
+busses of the RP-2040.  The APA102s are so-called 4-wire addressable LEDs.  Two
 wires are for power supply and ground. The third for the signal clock and the
 fourth for the signal.  One crucial point that I learned is that the signal
 clock is not global but each LED regenerates the clock signal so that id does
