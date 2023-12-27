@@ -1,6 +1,6 @@
 # A LED strip flower for the RP-Pico 2040
 
-This is a bad weather afternoon hack during last November that I did to
+This is a bad weather afternoon hack during that I did last November to
 decorate [our Esperanto assembly](https://events.ccc.de/congress/2023/hub/en/assembly/esperanto/)
 at the [37c3](https://events.ccc.de/congress/2023/infos/startpage.html).  Since
 many that came across asked for it I publish the source code. It is now by no
