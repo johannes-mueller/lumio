@@ -198,9 +198,8 @@ fn main() -> ! {
             }
         }
 
-        eo_stars.reset(&mut led_strip);
         loop {
-            eo_stars.process(&mut led_strip);
+            fire.process(&mut led_strip);
             let _ = spi1.write(led_strip.dump_0());
 
             if showtimer.do_next() {
@@ -209,8 +208,9 @@ fn main() -> ! {
             }
         }
 
+        eo_stars.reset(&mut led_strip);
         loop {
-            fire.process(&mut led_strip);
+            eo_stars.process(&mut led_strip);
             let _ = spi1.write(led_strip.dump_0());
 
             if showtimer.do_next() {
