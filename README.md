@@ -4,7 +4,7 @@ This is a bad weather afternoon hack during last November that I did to
 decorate [our Esperanto assembly](https://events.ccc.de/congress/2023/hub/en/assembly/esperanto/)
 at the [37c3](https://events.ccc.de/congress/2023/infos/startpage.html).  Since
 many that came across asked for it I publish the source code. It is now by no
-means documented.  I am not sure if I am going to change that :)
+means documented.  I am not sure if I am going to change that.  :)
 
 So just some basic stuff …
 
