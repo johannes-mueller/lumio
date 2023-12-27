@@ -1,10 +1,12 @@
 # A ledstrip flower for the RP-Pico 2040
 
-This is a bad whether afternoon hack that I did to decorate our assembly at the
-37c3.  Since many that came across asked for it I publish the source code. It
-is now by no means documented.  I am not sure if I am going to change that :)
+This is a bad whether afternoon hack during last november that I did to
+decorate [our Esperanto assembly](https://events.ccc.de/congress/2023/hub/en/assembly/esperanto/)
+at the [37c3](https://events.ccc.de/congress/2023/infos/startpage.html).  Since
+many that came across asked for it I publish the source code. It is now by no
+means documented.  I am not sure if I am going to change that :)
 
-Just some basic stuff
+So just some basic stuff …
 
 
 ## Idea
@@ -23,6 +25,14 @@ I've chosen the RP-2040 for the project for two reasons.
 
 * The SPIs of the RP-2040 are said to deal with 5V quite well and as it turns
   out I have not experienced logic voltage issues – well maybe some small ones.
+
+The LED strips are made of APA102 leds.  They work quite well with the SPI
+busses of the RP-2040.  The APA102s are so called 4-wire addressable leds.  Two
+wires are for power supply and ground. The third for the signal clock and the
+fourth for the signal.  On crucial point that I learned is that the signal
+clock is not global but each LED regenerates the clock signal so that id does
+not degenerate down the strip.  That is why there are two wires from the top of
+each strip back to the bottom.
 
 
 ## Programming
