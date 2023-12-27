@@ -20,7 +20,7 @@ have to check it when I get home with my osci.
 
 I've chosen the RP-2040 for the project for two reasons.
 
-* It has two SPIs (on of which is not working ☹️), as I was not able to run all
+* It has two SPIs (one of which is not working ☹️), as I was not able to run all
   the 24 strips on one SPI.
 
 * The SPIs of the RP-2040 are said to deal with 5V quite well and as it turns
@@ -29,7 +29,7 @@ I've chosen the RP-2040 for the project for two reasons.
 The LED strips are made of APA102 leds.  They work quite well with the SPI
 busses of the RP-2040.  The APA102s are so called 4-wire addressable leds.  Two
 wires are for power supply and ground. The third for the signal clock and the
-fourth for the signal.  On crucial point that I learned is that the signal
+fourth for the signal.  One crucial point that I learned is that the signal
 clock is not global but each LED regenerates the clock signal so that id does
 not degenerate down the strip.  That is why there are two wires from the top of
 each strip back to the bottom.
