@@ -17,7 +17,7 @@ pub struct ShowTimer<'a, BP: PinId, LP: PinId> {
 impl <'a, BP: PinId, LP: PinId> ShowTimer<'a, BP, LP> {
     pub fn new(button: Button<'a, BP>, led_pin: Pin<LP, FunctionSio<SioOutput>, PullDown>, timer: &'a Timer) -> ShowTimer<'a, BP, LP> {
         let time_stamp = timer.get_counter();
-        ShowTimer { auto_show: false, button, led_pin, time_stamp, timer }
+        ShowTimer { auto_show: true, button, led_pin, time_stamp, timer }
     }
 
     pub fn do_next(&mut self) -> bool {
