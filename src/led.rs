@@ -26,7 +26,7 @@ impl Color {
 
         const N: f32 = 0.0;
 
-        let h6 = h*6.;
+        let h6 = (h % 1.0) *6.;
         let x = c * (1. - fabsf(h6 % 2. - 1.));
         let (r, g, b) = match h6 {
             h if h >= 0.0 && h < 1.0 => (c, x, N),
@@ -154,7 +154,7 @@ impl Led {
 }
 
 
-fn decay(current: u8, target: u8, decay: u8) -> u8 {
+pub fn decay(current: u8, target: u8, decay: u8) -> u8 {
     if target == current {
         return target;
     }

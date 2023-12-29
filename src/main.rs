@@ -46,6 +46,7 @@ mod fire;
 mod stars;
 mod spiral;
 mod huewave;
+mod sparks;
 
 use conf::SNAKE_PROB;
 use led::{WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
@@ -56,6 +57,7 @@ use fire::Fire;
 use stars::Stars;
 use spiral::Spiral;
 use huewave::HueWave;
+use sparks::Spark;
 use random::Random;
 use showtimer::ShowTimer;
 
@@ -123,9 +125,12 @@ fn main() -> ! {
 
     let mut random = Random::new(2495823494);
 
+    let strips: [usize; 12] = core::array::from_fn(|i| i+1);
+
+    let mut sparks: [Spark; 96] = core::array::from_fn(|i| i+1).map(|strip| Spark::new(strip / 8));
+
     let mut constant_snakes: [Snake; 12] = [Snake::default(); 12];
     let mut random_snakes: [Snake; 12] = [Snake::default(); 12];
-    let strips: [usize; 12] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
     let mut fire = Fire::new();
     let mut eu_stars = Stars::new(DARK_BLUE, YELLOW);
@@ -136,6 +141,37 @@ fn main() -> ! {
     let mut showtimer = ShowTimer::new(button_1, led_1_pin, &timer);
 
     loop {
+        for sp in sparks.iter_mut() {
+            sp.reset(
+                random.value(),
+                random.value8() as isize,
+                0, // decay
+                255 // initial_brightness
+            );
+        };
+
+        loop {
+            led_strip.black();
+            for sp in sparks.iter_mut() {
+                sp.process(&mut led_strip);
+            }
+            let _ = spi1.write(led_strip.dump_0());
+            if !sparks.iter().any(|sp| sp.is_active()) {
+                let hue = random.value();
+                for sp in sparks.iter_mut() {
+                    sp.reset(
+                        hue,
+                        random.value8() as isize,
+                        0, 255
+//                        random.value8()
+                    );
+                };
+            }
+            if showtimer.do_next() {
+                led_strip.black();
+                break;
+            }
+        }
 
         loop {
             huewave.process(&mut led_strip);
