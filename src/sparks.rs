@@ -88,14 +88,14 @@ impl ColorSpark {
 }
 
 #[derive(Clone, Copy)]
-pub struct SparkEngine {
+struct SparkEngine {
     strip: isize,
     current_speed: isize,
     current_position: isize,
 }
 
 impl SparkEngine {
-    pub fn new(strip: usize) -> SparkEngine {
+    fn new(strip: usize) -> SparkEngine {
         SparkEngine {
             strip: strip as isize,
             current_speed: 0,
@@ -103,20 +103,20 @@ impl SparkEngine {
         }
     }
 
-    pub fn reset(&mut self, initial_speed: isize) {
+    fn reset(&mut self, initial_speed: isize) {
         self.current_speed = initial_speed;
         self.current_position = 0;
     }
 
-    pub fn is_active(&self) -> bool {
+    fn is_active(&self) -> bool {
         self.current_position >= 0
     }
 
-    pub fn going_down(&self) -> bool {
+    fn going_down(&self) -> bool {
         self.current_speed < 0
     }
 
-    pub fn process(&mut self, led_strip: &mut LEDStrip, color: Color) {
+    fn process(&mut self, led_strip: &mut LEDStrip, color: Color) {
         let start_pos = STRIP_LENGTH*self.strip;
         if !self.is_active() {
             return;
