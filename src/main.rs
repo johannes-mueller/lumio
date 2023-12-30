@@ -48,7 +48,7 @@ mod spiral;
 mod huewave;
 mod sparks;
 
-use conf::SNAKE_PROB;
+use conf::{SNAKE_PROB, SPARK_PROB};
 use led::{WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
 use button::{Button, ButtonState};
 use ledstrip::LEDStrip;
@@ -141,15 +141,6 @@ fn main() -> ! {
     let mut showtimer = ShowTimer::new(button_1, led_1_pin, &timer);
 
     loop {
-        for sp in sparks.iter_mut() {
-            sp.reset(
-                random.value(),
-                random.value8() as isize,
-                0, // decay
-                255 // initial_brightness
-            );
-        };
-
         loop {
             led_strip.black();
             for sp in sparks.iter_mut() {
@@ -157,18 +148,23 @@ fn main() -> ! {
             }
             let _ = spi1.write(led_strip.dump_0());
             if !sparks.iter().any(|sp| sp.is_active()) {
-                let hue = random.value();
-                for sp in sparks.iter_mut() {
-                    sp.reset(
-                        hue,
-                        random.value8() as isize,
-                        0, 255
-//                        random.value8()
-                    );
-                };
+                if random.value() < SPARK_PROB || button_2.state() == ButtonState::ShortPressed {
+                    let _ = led_2_pin.set_high();
+                    let hue = random.value();
+                    for sp in sparks.iter_mut() {
+                        sp.reset(
+                            hue,
+                            random.value8() as isize,
+                            random.value8() >> 4, random.value8()
+                        );
+                    };
+                } else {
+                    let _ = led_2_pin.set_low();
+                }
             }
             if showtimer.do_next() {
                 led_strip.black();
+                let _ = led_2_pin.set_low();
                 break;
             }
         }
