@@ -57,7 +57,7 @@ use fire::Fire;
 use stars::Stars;
 use spiral::Spiral;
 use huewave::HueWave;
-use sparks::Spark;
+use sparks::MonoSpark;
 use random::Random;
 use showtimer::ShowTimer;
 
@@ -127,7 +127,7 @@ fn main() -> ! {
 
     let strips: [usize; 12] = core::array::from_fn(|i| i+1);
 
-    let mut sparks: [Spark; 96] = core::array::from_fn(|i| i+1).map(|strip| Spark::new(strip / 8));
+    let mut mono_sparks: [MonoSpark; 96] = core::array::from_fn(|i| i+1).map(|strip| MonoSpark::new(strip / 8));
 
     let mut constant_snakes: [Snake; 12] = [Snake::default(); 12];
     let mut random_snakes: [Snake; 12] = [Snake::default(); 12];
@@ -143,15 +143,15 @@ fn main() -> ! {
     loop {
         loop {
             led_strip.black();
-            for sp in sparks.iter_mut() {
+            for sp in mono_sparks.iter_mut() {
                 sp.process(&mut led_strip);
             }
             let _ = spi1.write(led_strip.dump_0());
-            if !sparks.iter().any(|sp| sp.is_active()) {
+            if !mono_sparks.iter().any(|sp| sp.is_active()) {
                 if random.value() < SPARK_PROB || button_2.state() == ButtonState::ShortPressed {
                     let _ = led_2_pin.set_high();
                     let hue = random.value();
-                    for sp in sparks.iter_mut() {
+                    for sp in mono_sparks.iter_mut() {
                         sp.reset(
                             hue,
                             random.value8() as isize,
