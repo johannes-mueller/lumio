@@ -57,7 +57,7 @@ use fire::Fire;
 use stars::Stars;
 use spiral::Spiral;
 use huewave::HueWave;
-use sparks::MonoSpark;
+use sparks::{MonoSpark, ColorSpark};
 use random::Random;
 use showtimer::ShowTimer;
 
@@ -128,7 +128,8 @@ fn main() -> ! {
     let strips: [usize; STRIP_NUM] = core::array::from_fn(|i| i+1);
 
     const SPARK_NUM: usize = STRIP_NUM * SPARKS_PER_STRIP;
-    let mut mono_sparks: [MonoSpark; SPARK_NUM] = core::array::from_fn(|i| i+1).map(|strip| MonoSpark::new(strip / SPARKS_PER_STRIP));
+    let mut mono_sparks: [MonoSpark; SPARK_NUM] = core::array::from_fn(|i| i+1).map(|sn| MonoSpark::new(sn / SPARKS_PER_STRIP));
+    let mut color_sparks: [ColorSpark; STRIP_NUM] = core::array::from_fn(|i| i+1).map(|strip| ColorSpark::new(strip));
 
     let mut constant_snakes: [Snake; STRIP_NUM] = [Snake::default(); STRIP_NUM];
     let mut random_snakes: [Snake; STRIP_NUM] = [Snake::default(); STRIP_NUM];
@@ -147,17 +148,27 @@ fn main() -> ! {
             for sp in mono_sparks.iter_mut() {
                 sp.process(&mut led_strip);
             }
+            for sp in color_sparks.iter_mut() {
+                sp.process(&mut led_strip);
+            }
             let _ = spi1.write(led_strip.dump_0());
             if !mono_sparks.iter().any(|sp| sp.is_active()) {
                 if random.value() < SPARK_PROB || button_2.state() == ButtonState::ShortPressed {
                     let _ = led_2_pin.set_high();
                     let hue = random.value();
                     for sp in mono_sparks.iter_mut() {
-                        sp.reset(
-                            hue,
-                            random.value8() as isize,
-                            random.value8() >> 4, random.value8()
-                        );
+                        let speed = random.value8() as isize;
+                        let decay = random.value8() >> 2;
+                        let brightness = 127 + random.value8() % 128;
+                        sp.reset(hue, speed, decay, brightness);
+                    };
+                    for strip in 0..STRIP_NUM {
+                        let start = strip * SPARKS_PER_STRIP;
+                        let end = start + SPARKS_PER_STRIP;
+                        let speed = (start..end).map(|i| mono_sparks[i].speed()).max().unwrap();
+                        let hue = random.value();
+                        let decay = 0.1;
+                        color_sparks[strip].reset(hue, decay, speed);
                     };
                 } else {
                     let _ = led_2_pin.set_low();
