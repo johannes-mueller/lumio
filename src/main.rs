@@ -48,7 +48,7 @@ mod spiral;
 mod huewave;
 mod sparks;
 
-use conf::{SNAKE_PROB, SPARK_PROB};
+use conf::{SNAKE_PROB, SPARK_PROB, SPARKS_PER_STRIP, STRIP_NUM};
 use led::{WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
 use button::{Button, ButtonState};
 use ledstrip::LEDStrip;
@@ -125,12 +125,13 @@ fn main() -> ! {
 
     let mut random = Random::new(2495823494);
 
-    let strips: [usize; 12] = core::array::from_fn(|i| i+1);
+    let strips: [usize; STRIP_NUM] = core::array::from_fn(|i| i+1);
 
-    let mut mono_sparks: [MonoSpark; 96] = core::array::from_fn(|i| i+1).map(|strip| MonoSpark::new(strip / 8));
+    const SPARK_NUM: usize = STRIP_NUM * SPARKS_PER_STRIP;
+    let mut mono_sparks: [MonoSpark; SPARK_NUM] = core::array::from_fn(|i| i+1).map(|strip| MonoSpark::new(strip / SPARKS_PER_STRIP));
 
-    let mut constant_snakes: [Snake; 12] = [Snake::default(); 12];
-    let mut random_snakes: [Snake; 12] = [Snake::default(); 12];
+    let mut constant_snakes: [Snake; STRIP_NUM] = [Snake::default(); STRIP_NUM];
+    let mut random_snakes: [Snake; STRIP_NUM] = [Snake::default(); STRIP_NUM];
 
     let mut fire = Fire::new();
     let mut eu_stars = Stars::new(DARK_BLUE, YELLOW);
@@ -184,7 +185,7 @@ fn main() -> ! {
 
         loop {
             if !running {
-                for i in 0..12 {
+                for i in 0..STRIP_NUM {
                     constant_snakes[i].reset(strips[i], random.value(), 60./360.);
                 }
             }
@@ -202,7 +203,7 @@ fn main() -> ! {
                 running = false;
             }
             if random.value8() < SNAKE_PROB {
-                let cand = random.value32(12) as usize;
+                let cand = random.value32(STRIP_NUM as u32) as usize;
                 if !random_snakes[cand].is_active() {
                     random_snakes[cand].reset(cand, random.value(), 60./360.);
                 }
