@@ -8,7 +8,7 @@
 use core::usize;
 
 
-use bsp::{entry, hal::{timer::Instant, Timer}};
+use bsp::entry;
 use defmt::*;
 use defmt_rtt as _;
 //use embedded_hal::digital::v2::OutputPin;
@@ -21,7 +21,7 @@ use rp_pico as bsp;
 
 use embedded_hal::spi::MODE_0;
 use embedded_hal::blocking::spi::Write;
-use fugit::{RateExtU32, MicrosDurationU64};
+use fugit::RateExtU32;
 
 use bsp::hal::{
     clocks::{init_clocks_and_plls, Clock},
@@ -192,33 +192,22 @@ fn main() -> ! {
 //            delay.delay_ms(50);
         }
 
-        let mut running: Option<(usize, Instant)> = None;
+        let mut running = false;
         let mut step = 0;
 
         loop {
-            for i in 0..STRIP_NUM {
-                match running {
-                    Some((last_running, time)) if i == last_running => {
-                        if constant_snakes[last_running].is_done() {
-                            constant_snakes[last_running].reset(last_running, random.value(), 60./360.);
-                        }
-                        let now = timer.get_counter();
-                        if now - time > MicrosDurationU64::millis(100) {
-                            running = match last_running+1 {
-                                r if r == STRIP_NUM => None,
-                                r => Some((r, now))
-                            };
-                        }
-                    }
-                    _ => {}
+            if !running {
+                for i in 0..STRIP_NUM {
+                    constant_snakes[i].reset(strips[i], random.value(), 60./360.);
                 }
             }
             if constant_snakes.iter().all(|sn| sn.is_done()) {
                 let _ = led_2_pin.set_low();
+                running = false;
             }
-            if (button_2.state() == ButtonState::ShortPressed && running.is_none()) || step == 0 {
+            if (button_2.state() == ButtonState::ShortPressed && !running) || step == 0 {
                 let _ = led_2_pin.set_high();
-                running = Some((0, timer.get_counter()));
+                running = true;
             }
             for sn in constant_snakes.iter_mut() {
                 sn.process(&mut led_strip);
