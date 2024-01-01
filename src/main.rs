@@ -8,7 +8,7 @@
 use core::usize;
 
 
-use bsp::entry;
+use bsp::{entry, hal::{timer::Instant, Timer}};
 use defmt::*;
 use defmt_rtt as _;
 //use embedded_hal::digital::v2::OutputPin;
@@ -21,7 +21,7 @@ use rp_pico as bsp;
 
 use embedded_hal::spi::MODE_0;
 use embedded_hal::blocking::spi::Write;
-use fugit::RateExtU32;
+use fugit::{RateExtU32, MicrosDurationU64};
 
 use bsp::hal::{
     clocks::{init_clocks_and_plls, Clock},
@@ -192,30 +192,41 @@ fn main() -> ! {
 //            delay.delay_ms(50);
         }
 
-        let mut running = false;
+        let mut running: Option<(usize, Instant)> = None;
 
         loop {
-            if !running {
-                for i in 0..STRIP_NUM {
-                    constant_snakes[i].reset(strips[i], random.value(), 60./360.);
+            for i in 0..STRIP_NUM {
+                match running {
+                    Some((last_running, time)) if i == last_running => {
+                        if constant_snakes[last_running].is_done() {
+                            constant_snakes[last_running].reset(last_running, random.value(), 60./360.);
+                        }
+                        let now = timer.get_counter();
+                        if now - time > MicrosDurationU64::millis(100) {
+                            running = match last_running+1 {
+                                r if r == STRIP_NUM => None,
+                                r => Some((r, now))
+                            };
+                        }
+                    }
+                    _ => {}
                 }
             }
-            if button_2.state() == ButtonState::ShortPressed {
-                let _ = led_2_pin.set_high();
-                running = true;
+            if constant_snakes.iter().all(|sn| sn.is_done()) {
+                let _ = led_2_pin.set_low();
             }
+            if button_2.state() == ButtonState::ShortPressed && running.is_none() {
+                let _ = led_2_pin.set_high();
+                running = Some((0, timer.get_counter()));
+            }\
+                 -
             for sn in constant_snakes.iter_mut() {
                 sn.process(&mut led_strip);
             }
             let _ = spi1.write(led_strip.dump_0());
-            //      let _ = spi0.write(led_strip.dump_1());
-            if constant_snakes.iter().all(|&sn| !sn.is_active()) {
-                let _ = led_2_pin.set_low();
-                running = false;
-            }
             if random.value8() < SNAKE_PROB {
                 let cand = random.value32(STRIP_NUM as u32) as usize;
-                if !random_snakes[cand].is_active() {
+                if random_snakes[cand].is_done() {
                     random_snakes[cand].reset(cand, random.value(), 60./360.);
                 }
             }

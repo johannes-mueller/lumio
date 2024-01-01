@@ -34,8 +34,8 @@ impl Snake {
         self.done = false;
     }
 
-    pub fn is_active(&self) -> bool {
-        !self.done
+    pub fn is_done(&self) -> bool {
+        self.done
     }
 
     pub fn process(&mut self, led_strip: &mut LEDStrip) {
