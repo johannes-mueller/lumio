@@ -193,6 +193,7 @@ fn main() -> ! {
         }
 
         let mut running: Option<(usize, Instant)> = None;
+        let mut step = 0;
 
         loop {
             for i in 0..STRIP_NUM {
@@ -215,11 +216,10 @@ fn main() -> ! {
             if constant_snakes.iter().all(|sn| sn.is_done()) {
                 let _ = led_2_pin.set_low();
             }
-            if button_2.state() == ButtonState::ShortPressed && running.is_none() {
+            if (button_2.state() == ButtonState::ShortPressed && running.is_none()) || step == 0 {
                 let _ = led_2_pin.set_high();
                 running = Some((0, timer.get_counter()));
-            }\
-                 -
+            }
             for sn in constant_snakes.iter_mut() {
                 sn.process(&mut led_strip);
             }
@@ -239,6 +239,8 @@ fn main() -> ! {
                 let _ = led_2_pin.set_low();
                 break;
             }
+
+            step = (step + 1) % 1024;
             //        delay.delay_ms(1);
         }
 
