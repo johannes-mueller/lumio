@@ -137,7 +137,8 @@ fn main() -> ! {
     let mut fire = Fire::new();
     let mut eu_stars = Stars::new(DARK_BLUE, YELLOW);
     let mut eo_stars = Stars::new(DARK_GREEN, WHITE);
-    let mut spiral = Spiral::new(5);
+    let mut spiral = Spiral::new(0);
+    let mut wandering_spiral = Spiral::wandering();
     let mut huewave = HueWave::new();
 
     let mut showtimer = ShowTimer::new(button_1, led_1_pin, &timer);
@@ -155,48 +156,16 @@ fn main() -> ! {
 
     loop {
         loop {
-            led_strip.black();
-            for (i, fs) in snow_sparks.iter_mut().enumerate() {
-                let was_active = fs.is_active();
-                fs.process(&mut led_strip);
-                if !fs.is_active() {
-                    if was_active {
-                        let speed = match fs.initial_speed() {
-                            0 => 128,
-                            s => (s * 4) / 5
-                        };
-                        if speed > 1 {
-                            fs.reset(speed, 0);
-                        }
-                    } else if random.value() < SPARK_PROB * 0.7 {
-                        fs.reset(0, STRIP_LENGTH as isize - 1);
-                    }
-                }
-            }
-            delay.delay_ms(10);
-            let _ = spi1.write(led_strip.dump_0());
-            if showtimer.do_next() {
-                led_strip.black();
-                let _ = led_2_pin.set_low();
-                break;
-            }
-        }
+            huewave.process(&mut led_strip);
+            wandering_spiral.process(&mut led_strip);
+            wandering_spiral.step();
 
-        loop {
-            led_strip.black();
-            for fs in falling_sparks.iter_mut() {
-                if !fs.is_active() && random.value() < SPARK_PROB {
-                    fs.reset(0, STRIP_LENGTH as isize - 1);
-                }
-                fs.process(&mut led_strip);
-            }
-            delay.delay_ms(10);
             let _ = spi1.write(led_strip.dump_0());
             if showtimer.do_next() {
                 led_strip.black();
-                let _ = led_2_pin.set_low();
                 break;
             }
+//            delay.delay_ms(50);
         }
 
         loop {
@@ -239,12 +208,42 @@ fn main() -> ! {
         loop {
             huewave.process(&mut led_strip);
             spiral.process(&mut led_strip);
+            spiral.swirl();
+
             let _ = spi1.write(led_strip.dump_0());
             if showtimer.do_next() {
                 led_strip.black();
                 break;
             }
 //            delay.delay_ms(50);
+        }
+
+        loop {
+            led_strip.black();
+            for (i, fs) in snow_sparks.iter_mut().enumerate() {
+                let was_active = fs.is_active();
+                fs.process(&mut led_strip);
+                if !fs.is_active() {
+                    if was_active {
+                        let speed = match fs.initial_speed() {
+                            0 => 128,
+                            s => (s * 4) / 5
+                        };
+                        if speed > 1 {
+                            fs.reset(speed, 0);
+                        }
+                    } else if random.value() < SPARK_PROB * 0.7 {
+                        fs.reset(0, STRIP_LENGTH as isize - 1);
+                    }
+                }
+            }
+            delay.delay_ms(10);
+            let _ = spi1.write(led_strip.dump_0());
+            if showtimer.do_next() {
+                led_strip.black();
+                let _ = led_2_pin.set_low();
+                break;
+            }
         }
 
         let mut running = false;
@@ -286,6 +285,23 @@ fn main() -> ! {
 
             step = (step + 1) % 1024;
             //        delay.delay_ms(1);
+        }
+
+        loop {
+            led_strip.black();
+            for fs in falling_sparks.iter_mut() {
+                if !fs.is_active() && random.value() < SPARK_PROB {
+                    fs.reset(0, STRIP_LENGTH as isize - 1);
+                }
+                fs.process(&mut led_strip);
+            }
+            delay.delay_ms(10);
+            let _ = spi1.write(led_strip.dump_0());
+            if showtimer.do_next() {
+                led_strip.black();
+                let _ = led_2_pin.set_low();
+                break;
+            }
         }
 
         eu_stars.reset(&mut led_strip);
