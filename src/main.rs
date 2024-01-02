@@ -49,7 +49,7 @@ mod huewave;
 mod sparks;
 
 use conf::{SNAKE_PROB, SPARK_PROB, SPARKS_PER_STRIP, STRIP_NUM};
-use led::{WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
+use led::{Color, WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
 use button::{Button, ButtonState};
 use ledstrip::LEDStrip;
 use snake::Snake;
@@ -57,7 +57,7 @@ use fire::Fire;
 use stars::Stars;
 use spiral::Spiral;
 use huewave::HueWave;
-use sparks::{MonoSpark, ColorSpark};
+use sparks::{MonoSpark, ColorSpark, FallingSparks};
 use random::Random;
 use showtimer::ShowTimer;
 
@@ -142,7 +142,28 @@ fn main() -> ! {
 
     let mut showtimer = ShowTimer::new(button_1, led_1_pin, &timer);
 
+    let mut matrix_sparks: [FallingSparks; SPARK_NUM] =
+        core::array::from_fn(|i| i+1)
+        .map(|sn| FallingSparks::new(sn / SPARKS_PER_STRIP, Color {r: 32, g: 0, b: 32}));
+
     loop {
+        loop {
+            led_strip.black();
+            for ms in matrix_sparks.iter_mut() {
+                if !ms.is_active() && random.value() < SPARK_PROB {
+                    ms.reset();
+                }
+                ms.process(&mut led_strip);
+            }
+            delay.delay_ms(10);
+            let _ = spi1.write(led_strip.dump_0());
+            if showtimer.do_next() {
+                led_strip.black();
+                let _ = led_2_pin.set_low();
+                break;
+            }
+        }
+
         loop {
             led_strip.black();
             for sp in mono_sparks.iter_mut() {

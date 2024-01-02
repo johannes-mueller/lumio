@@ -1,5 +1,5 @@
 
-use crate::{random::Random, ledstrip::LEDStrip, conf, led::{Color, BLACK, self}};
+use crate::{random::Random, ledstrip::LEDStrip, conf, led::{Color, BLACK, self, DARK_GREEN}};
 
 const STRIP_LENGTH: isize = conf::STRIP_LENGTH as isize;
 
@@ -37,7 +37,7 @@ impl MonoSpark {
         self.hue = hue;
         self.decay = decay;
         self.current_brightness = initial_brightness;
-        self.engine.reset(initial_speed);
+        self.engine.reset(initial_speed, 0);
     }
 
     pub fn process(&mut self, led_strip: &mut LEDStrip) {
@@ -75,7 +75,7 @@ impl ColorSpark {
         self.hue = hue;
         self.decay = decay;
         self.current_sat = 0.0;
-        self.engine.reset(initial_speed);
+        self.engine.reset(initial_speed, 0);
     }
 
     pub fn process(&mut self, led_strip: &mut LEDStrip) {
@@ -84,6 +84,32 @@ impl ColorSpark {
         if self.engine.going_down() {
             self.current_sat += (1.0 - self.current_sat) * self.decay;
         }
+    }
+}
+
+pub struct FallingSparks {
+    engine: SparkEngine,
+    color: Color
+}
+
+impl FallingSparks {
+    pub fn new(strip: usize, color: Color) -> FallingSparks {
+        FallingSparks {
+            engine: SparkEngine::new(strip),
+            color
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.engine.is_active()
+    }
+
+    pub fn reset(&mut self) {
+        self.engine.reset(0, 59 << 6);
+    }
+
+    pub fn process(&mut self, led_strip: &mut LEDStrip) {
+        self.engine.process(led_strip, self.color);
     }
 }
 
@@ -103,9 +129,9 @@ impl SparkEngine {
         }
     }
 
-    fn reset(&mut self, initial_speed: isize) {
+    fn reset(&mut self, initial_speed: isize, initial_position: isize) {
         self.current_speed = initial_speed;
-        self.current_position = 0;
+        self.current_position = initial_position;
     }
 
     fn is_active(&self) -> bool {
