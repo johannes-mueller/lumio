@@ -104,8 +104,8 @@ impl FallingSparks {
         self.engine.is_active()
     }
 
-    pub fn reset(&mut self) {
-        self.engine.reset(0, 59 << 6);
+    pub fn reset(&mut self, initial_speed: isize, initial_position: isize) {
+        self.engine.reset(initial_speed, initial_position << 6);
     }
 
     pub fn process(&mut self, led_strip: &mut LEDStrip) {

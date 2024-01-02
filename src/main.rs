@@ -48,7 +48,7 @@ mod spiral;
 mod huewave;
 mod sparks;
 
-use conf::{SNAKE_PROB, SPARK_PROB, SPARKS_PER_STRIP, STRIP_NUM};
+use conf::{SNAKE_PROB, SPARK_PROB, SPARKS_PER_STRIP, STRIP_NUM, STRIP_LENGTH};
 use led::{Color, WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
 use button::{Button, ButtonState};
 use ledstrip::LEDStrip;
@@ -142,18 +142,56 @@ fn main() -> ! {
 
     let mut showtimer = ShowTimer::new(button_1, led_1_pin, &timer);
 
-    let mut matrix_sparks: [FallingSparks; SPARK_NUM] =
+    let mut falling_sparks: [FallingSparks; SPARK_NUM] =
         core::array::from_fn(|i| i+1)
         .map(|sn| FallingSparks::new(sn / SPARKS_PER_STRIP, Color {r: 32, g: 0, b: 32}));
+
+    const SNOW_SPARKS_PER_STRIP: usize = 1;
+    const SNOW_SPARK_NUM: usize = SNOW_SPARKS_PER_STRIP * STRIP_LENGTH;
+
+    let mut snow_sparks: [FallingSparks; SNOW_SPARK_NUM] =
+        core::array::from_fn(|i| i+1)
+        .map(|sn| FallingSparks::new(sn / SNOW_SPARKS_PER_STRIP, Color {r: 32, g: 32, b: 32}));
+
+    let mut bouncing_sparks: [FallingSparks; SNOW_SPARK_NUM] =
+        core::array::from_fn(|i| i+1)
+        .map(|sn| FallingSparks::new(sn / SNOW_SPARKS_PER_STRIP, Color {r: 32, g: 32, b: 32}));
+
 
     loop {
         loop {
             led_strip.black();
-            for ms in matrix_sparks.iter_mut() {
-                if !ms.is_active() && random.value() < SPARK_PROB {
-                    ms.reset();
+            for (i, fs) in snow_sparks.iter_mut().enumerate() {
+                let was_active = fs.is_active();
+                fs.process(&mut led_strip);
+                if !fs.is_active() {
+                    if was_active {
+                        bouncing_sparks[i].reset(128, 0)
+                    }
+                    if random.value() < SPARK_PROB * 0.5{
+                        fs.reset(0, STRIP_LENGTH as isize - 1);
+                    }
                 }
-                ms.process(&mut led_strip);
+            }
+            for bs in bouncing_sparks.iter_mut() {
+                bs.process(&mut led_strip);
+            }
+            delay.delay_ms(10);
+            let _ = spi1.write(led_strip.dump_0());
+            if showtimer.do_next() {
+                led_strip.black();
+                let _ = led_2_pin.set_low();
+                break;
+            }
+        }
+
+        loop {
+            led_strip.black();
+            for fs in falling_sparks.iter_mut() {
+                if !fs.is_active() && random.value() < SPARK_PROB {
+                    fs.reset(0, STRIP_LENGTH as isize - 1);
+                }
+                fs.process(&mut led_strip);
             }
             delay.delay_ms(10);
             let _ = spi1.write(led_strip.dump_0());
