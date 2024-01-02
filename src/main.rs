@@ -146,17 +146,12 @@ fn main() -> ! {
         core::array::from_fn(|i| i+1)
         .map(|sn| FallingSparks::new(sn / SPARKS_PER_STRIP, Color {r: 32, g: 0, b: 32}));
 
-    const SNOW_SPARKS_PER_STRIP: usize = 1;
-    const SNOW_SPARK_NUM: usize = SNOW_SPARKS_PER_STRIP * STRIP_LENGTH;
+    const SNOW_SPARKS_PER_STRIP: usize = 2;
+    const SNOW_SPARK_NUM: usize = SNOW_SPARKS_PER_STRIP * STRIP_NUM;
 
     let mut snow_sparks: [FallingSparks; SNOW_SPARK_NUM] =
         core::array::from_fn(|i| i+1)
         .map(|sn| FallingSparks::new(sn / SNOW_SPARKS_PER_STRIP, Color {r: 32, g: 32, b: 32}));
-
-    let mut bouncing_sparks: [FallingSparks; SNOW_SPARK_NUM] =
-        core::array::from_fn(|i| i+1)
-        .map(|sn| FallingSparks::new(sn / SNOW_SPARKS_PER_STRIP, Color {r: 32, g: 32, b: 32}));
-
 
     loop {
         loop {
@@ -166,15 +161,17 @@ fn main() -> ! {
                 fs.process(&mut led_strip);
                 if !fs.is_active() {
                     if was_active {
-                        bouncing_sparks[i].reset(128, 0)
-                    }
-                    if random.value() < SPARK_PROB * 0.5{
+                        let speed = match fs.initial_speed() {
+                            0 => 128,
+                            s => (s * 4) / 5
+                        };
+                        if speed > 1 {
+                            fs.reset(speed, 0);
+                        }
+                    } else if random.value() < SPARK_PROB * 0.7 {
                         fs.reset(0, STRIP_LENGTH as isize - 1);
                     }
                 }
-            }
-            for bs in bouncing_sparks.iter_mut() {
-                bs.process(&mut led_strip);
             }
             delay.delay_ms(10);
             let _ = spi1.write(led_strip.dump_0());
@@ -225,9 +222,8 @@ fn main() -> ! {
                         let start = strip * SPARKS_PER_STRIP;
                         let end = start + SPARKS_PER_STRIP;
                         let speed = (start..end).map(|i| mono_sparks[i].speed()).max().unwrap();
-                        let hue = random.value();
                         let decay = 0.1;
-                        color_sparks[strip].reset(hue, decay, speed);
+                        color_sparks[strip].reset(hue + 60./360. % 1.0, decay, speed);
                     };
                 } else {
                     let _ = led_2_pin.set_low();

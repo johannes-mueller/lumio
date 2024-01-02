@@ -89,15 +89,21 @@ impl ColorSpark {
 
 pub struct FallingSparks {
     engine: SparkEngine,
-    color: Color
+    color: Color,
+    initial_speed: isize
 }
 
 impl FallingSparks {
     pub fn new(strip: usize, color: Color) -> FallingSparks {
         FallingSparks {
             engine: SparkEngine::new(strip),
-            color
+            color,
+            initial_speed: 0
         }
+    }
+
+    pub fn initial_speed(&self) -> isize {
+        self.initial_speed
     }
 
     pub fn is_active(&self) -> bool {
@@ -105,6 +111,7 @@ impl FallingSparks {
     }
 
     pub fn reset(&mut self, initial_speed: isize, initial_position: isize) {
+        self.initial_speed = initial_speed;
         self.engine.reset(initial_speed, initial_position << 6);
     }
 
