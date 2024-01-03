@@ -1,9 +1,8 @@
 
-use crate::{random::Random, ledstrip::LEDStrip, conf, led::{Color, BLACK, self, DARK_GREEN}};
+use crate::{ledstrip::LEDStrip, conf, led::{Color, self}};
 
 const STRIP_LENGTH: isize = conf::STRIP_LENGTH as isize;
 
-const SPARKS_SKATTER: u8 = 32;
 const ACCEL: isize = 24;
 
 

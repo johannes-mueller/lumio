@@ -220,13 +220,13 @@ fn main() -> ! {
 
         loop {
             led_strip.black();
-            for (i, fs) in snow_sparks.iter_mut().enumerate() {
+            for fs in snow_sparks.iter_mut() {
                 let was_active = fs.is_active();
                 fs.process(&mut led_strip);
                 if !fs.is_active() {
                     if was_active {
                         let speed = match fs.initial_speed() {
-                            0 => 128,
+                            0 => 192,
                             s => (s * 4) / 5
                         };
                         if speed > 1 {
