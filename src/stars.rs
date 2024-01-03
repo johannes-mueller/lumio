@@ -1,4 +1,4 @@
-use crate::{random, ledstrip::LEDStrip, led::Color};
+use crate::{random, ledstrip::LEDStrip, led::Color, interface::Interface};
 
 const NUM_LED: usize = 720;
 const NOVA_PROB: u8 = 32;
@@ -31,4 +31,18 @@ impl Stars {
             led_strip.led_mut(pos).set_target_flickering(self.sky_color, 2, 96);
         }
     }
+
+    pub fn show(&mut self, interface: &mut Interface) {
+        self.reset(&mut interface.led_strip());
+        loop {
+            self.process(&mut interface.led_strip());
+            interface.write_spi();
+
+            if interface.do_next() {
+                interface.led_strip().black();
+                break;
+            }
+        }
+    }
+
 }

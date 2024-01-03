@@ -3,6 +3,7 @@ use rp_pico::hal::{gpio::{Pin, PinId, SioInput, FunctionSio, PullUp}, Timer};
 use rp_pico::hal::timer::Instant;
 
 use crate::conf::LONG_PRESS_TIME;
+use crate::interface::Interface;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ButtonState {
@@ -12,20 +13,18 @@ pub enum ButtonState {
     LongPressed
 }
 
-pub struct Button<'a, P: PinId> {
+pub struct Button<P: PinId> {
     pin: Pin<P, FunctionSio<SioInput>, PullUp>,
     press_time: Option<Instant>,
     state: ButtonState,
-    timer: &'a Timer
 }
 
-impl<'a, P: PinId> Button<'a, P> {
-    pub fn new(pin: Pin<P, FunctionSio<SioInput>, PullUp>, timer: &'a Timer) -> Button<'a, P> {
+impl<P: PinId> Button<P> {
+    pub fn new(pin: Pin<P, FunctionSio<SioInput>, PullUp>) -> Button<P> {
         Button {
             pin,
             press_time: None,
             state: ButtonState::Up,
-            timer
         }
     }
 
@@ -39,14 +38,14 @@ impl<'a, P: PinId> Button<'a, P> {
             self.press_time.map_or_else(
                 || (
                     if self.state == ButtonState::Up {
-                        Some(self.timer.get_counter())
+                        Some(Interface::get_time())
                     } else {
                         self.press_time
                     },
                     ButtonState::Down
                 ),
                 |past| {
-                    if self.timer.get_counter() - past > LONG_PRESS_TIME && self.state != ButtonState::LongPressed {
+                    if Interface::get_time() - past > LONG_PRESS_TIME && self.state != ButtonState::LongPressed {
                         (None, ButtonState::LongPressed)
                     } else {
                         (self.press_time, ButtonState::Down)

@@ -1,4 +1,4 @@
-use crate::{ledstrip::LEDStrip, random::Random, math8::{qsub8, scale8, qadd8}, led::Color};
+use crate::{ledstrip::LEDStrip, random::Random, math8::{qsub8, scale8, qadd8}, led::Color, interface::Interface};
 
 const NUM_LED: usize = 720;
 const STRIPE_LENGTH: usize = 60;
@@ -37,6 +37,18 @@ impl Fire {
 
         for i in 0..NUM_LED {
             led_strip.set_led(i as isize, Color::from_tempeature(self.heat[i]))
+        }
+    }
+
+    pub fn show(&mut self, interface: &mut Interface) {
+        loop {
+            self.process(&mut interface.led_strip());
+            interface.write_spi();
+
+            if interface.do_next() {
+                interface.led_strip().black();
+                break;
+            }
         }
     }
 }

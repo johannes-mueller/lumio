@@ -1,7 +1,8 @@
-use crate::conf::STRIP_LENGTH;
+use crate::conf::*;
 use crate::ledstrip::LEDStrip;
 use crate::led::{Color, BLACK};
-
+use crate::button::ButtonState;
+use crate::Interface;
 
 #[derive(Clone, Copy)]
 pub struct Snake {
@@ -57,5 +58,62 @@ impl Snake {
             self.done = true;
         }
         self.step += 1;
+    }
+}
+
+pub struct SnakeShow {
+    constant_snakes: [Snake; STRIP_NUM],
+    random_snakes: [Snake; STRIP_NUM]
+}
+
+impl SnakeShow {
+    pub fn new() -> SnakeShow {
+        SnakeShow {
+            constant_snakes: [Snake::default(); STRIP_NUM],
+            random_snakes: [Snake::default(); STRIP_NUM]
+        }
+    }
+
+    pub fn show(&mut self, interface: &mut Interface) {
+        let mut running = false;
+        let mut step = 0;
+
+        loop {
+            if !running {
+                for i in 0..STRIP_NUM {
+                    self.constant_snakes[i].reset(i, interface.random().value(), 60./360.);
+                }
+            }
+            if self.constant_snakes.iter().all(|sn| sn.is_done()) {
+                let _ = interface.led_off();
+                running = false;
+            }
+            if (interface.button_state() == ButtonState::ShortPressed && !running) || step == 0 {
+                let _ = interface.led_on();
+                running = true;
+            }
+            for sn in self.constant_snakes.iter_mut() {
+                sn.process(&mut interface.led_strip());
+            }
+            interface.write_spi();
+            if interface.random().value8() < SNAKE_PROB {
+                let cand = interface.random().value32(STRIP_NUM as u32) as usize;
+                if self.random_snakes[cand].is_done() {
+                    self.random_snakes[cand].reset(cand, interface.random().value(), 60./360.);
+                }
+            }
+            for sn in self.random_snakes.iter_mut() {
+                sn.process(&mut interface.led_strip());
+            }
+
+            if interface.do_next() {
+                interface.led_strip().black();
+                let _ = interface.led_off();
+                break;
+            }
+
+            step = (step + 1) % 1024;
+            //        interface.delay_ms(1);
+        }
     }
 }
