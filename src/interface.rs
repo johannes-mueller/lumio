@@ -4,30 +4,36 @@ use rp_pico::hal::{
     sio::Sio,
     spi::{Spi, Enabled},
     gpio::{
+        self,
         Pin,
+        Pins,
         FunctionSioOutput,
-        bank0,
         FunctionSpi,
         PullDown,
     },
     Timer,
-    watchdog::Watchdog, timer::Instant,
+    timer::Instant,
+    watchdog::Watchdog,
 };
-use rp_pico::Pins;
 
-use embedded_hal::{spi::MODE_0, digital::v2::OutputPin};
-use embedded_hal::blocking::spi::Write;
+use embedded_hal::{
+    spi::MODE_0, digital::v2::OutputPin,
+    blocking::spi::Write
+};
 use fugit::RateExtU32;
 
-use crate::{ledstrip::LEDStrip, showtimer::ShowTimer, button::{Button, ButtonState}, random::Random};
+use crate::ledstrip::LEDStrip;
+use crate::showtimer::ShowTimer;
+use crate::button::{Button, ButtonState};
+use crate::random::Random;
 
-type ButtonPin1 = bank0::Gpio21;
-type ButtonPin2 = bank0::Gpio20;
-type LedPin1 = bank0::Gpio10;
-type LedPin2 = bank0::Gpio11;
+type ButtonPin1 = gpio::bank0::Gpio21;
+type ButtonPin2 = gpio::bank0::Gpio20;
+type LedPin1 = gpio::bank0::Gpio10;
+type LedPin2 = gpio::bank0::Gpio11;
 
-type SCLK1 = Pin<bank0::Gpio14, FunctionSpi, PullDown>;
-type MOSI1 = Pin<bank0::Gpio15, FunctionSpi, PullDown>;
+type SCLK1 = Pin<gpio::bank0::Gpio14, FunctionSpi, PullDown>;
+type MOSI1 = Pin<gpio::bank0::Gpio15, FunctionSpi, PullDown>;
 
 type Spi1Pinout = (MOSI1, SCLK1);
 

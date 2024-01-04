@@ -1,6 +1,8 @@
 use embedded_hal::digital::v2::InputPin;
-use rp_pico::hal::{gpio::{Pin, PinId, SioInput, FunctionSio, PullUp}, Timer};
-use rp_pico::hal::timer::Instant;
+use rp_pico::hal::{
+    gpio::{Pin, PinId, SioInput, FunctionSio, PullUp},
+    timer::Instant
+};
 
 use crate::conf::LONG_PRESS_TIME;
 use crate::interface::Interface;
