@@ -32,6 +32,11 @@ type ButtonPin2 = gpio::bank0::Gpio20;
 type LedPin1 = gpio::bank0::Gpio10;
 type LedPin2 = gpio::bank0::Gpio11;
 
+type SCLK0 = Pin<gpio::bank0::Gpio18, FunctionSpi, PullDown>;
+type MOSI0 = Pin<gpio::bank0::Gpio19, FunctionSpi, PullDown>;
+
+type Spi0Pinout = (MOSI0, SCLK0);
+
 type SCLK1 = Pin<gpio::bank0::Gpio14, FunctionSpi, PullDown>;
 type MOSI1 = Pin<gpio::bank0::Gpio15, FunctionSpi, PullDown>;
 
@@ -57,7 +62,8 @@ pub struct Interface {
     button: Button<ButtonPin2>,
     led_pin: Pin<LedPin2, FunctionSioOutput, PullDown>,
     random: Random,
-    spi: Spi<Enabled, pac::SPI1, Spi1Pinout, 8>,
+    spi0: Spi<Enabled, pac::SPI0, Spi0Pinout, 8>,
+    spi1: Spi<Enabled, pac::SPI1, Spi1Pinout, 8>,
     delay: cortex_m::delay::Delay
 }
 
@@ -102,13 +108,22 @@ impl Interface {
         let led_1_pin = pins.gpio10.into_push_pull_output();
         let led_2_pin = pins.gpio11.into_push_pull_output();
 
+        let sclk = pins.gpio18.into_function::<FunctionSpi>();
+        let mosi = pins.gpio19.into_function::<FunctionSpi>();
+
+        let spi_device = pac.SPI0;
+        let spi_pin_layout = (mosi, sclk);
+
+        let spi0 = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
+            .init(&mut pac.RESETS, 450_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
+
         let sclk = pins.gpio14.into_function::<FunctionSpi>();
         let mosi = pins.gpio15.into_function::<FunctionSpi>();
 
         let spi_device = pac.SPI1;
         let spi_pin_layout = (mosi, sclk);
 
-        let spi = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
+        let spi1 = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
             .init(&mut pac.RESETS, 450_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
 
         Interface {
@@ -117,7 +132,7 @@ impl Interface {
             button: button_2,
             led_pin: led_2_pin,
             random: Random::new(423434859),
-            spi,
+            spi0, spi1,
             delay: cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz())
         }
     }
@@ -133,7 +148,8 @@ impl Interface {
         let _ = self.led_pin.set_low();
     }
     pub fn write_spi(&mut self) {
-        let _ = self.spi.write(self.led_strip.dump_0());
+        let _ = self.spi1.write(self.led_strip.dump_0());
+        let _ = self.spi0.write(self.led_strip.dump_0());
     }
 
     pub fn delay_ms(&mut self, delay: u32) {
