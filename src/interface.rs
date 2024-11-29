@@ -32,8 +32,8 @@ type ButtonPin2 = gpio::bank0::Gpio20;
 type LedPin1 = gpio::bank0::Gpio10;
 type LedPin2 = gpio::bank0::Gpio11;
 
-type SCLK0 = Pin<gpio::bank0::Gpio18, FunctionSpi, PullDown>;
-type MOSI0 = Pin<gpio::bank0::Gpio19, FunctionSpi, PullDown>;
+type SCLK0 = Pin<gpio::bank0::Gpio6, FunctionSpi, PullDown>;
+type MOSI0 = Pin<gpio::bank0::Gpio7, FunctionSpi, PullDown>;
 
 type Spi0Pinout = (MOSI0, SCLK0);
 
@@ -108,8 +108,8 @@ impl Interface {
         let led_1_pin = pins.gpio10.into_push_pull_output();
         let led_2_pin = pins.gpio11.into_push_pull_output();
 
-        let sclk = pins.gpio18.into_function::<FunctionSpi>();
-        let mosi = pins.gpio19.into_function::<FunctionSpi>();
+        let sclk = pins.gpio6.into_function::<FunctionSpi>();
+        let mosi = pins.gpio7.into_function::<FunctionSpi>();
 
         let spi_device = pac.SPI0;
         let spi_pin_layout = (mosi, sclk);
@@ -148,8 +148,8 @@ impl Interface {
         let _ = self.led_pin.set_low();
     }
     pub fn write_spi(&mut self) {
-        let _ = self.spi1.write(self.led_strip.dump_0());
         let _ = self.spi0.write(self.led_strip.dump_0());
+        let _ = self.spi1.write(self.led_strip.dump_1());
     }
 
     pub fn delay_ms(&mut self, delay: u32) {

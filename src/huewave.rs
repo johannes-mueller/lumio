@@ -1,4 +1,4 @@
-use crate::{ledstrip::LEDStrip, conf::STRIP_LENGTH, led::Color};
+use crate::{ledstrip::LEDStrip, conf::STRIP_LENGTH, conf::STRIP_NUM, led::Color};
 
 const HUE_STEP: f32 = 1.0 / STRIP_LENGTH as f32;
 
@@ -14,7 +14,7 @@ impl HueWave {
     pub fn process(&mut self, led_strip: &mut LEDStrip) {
         let mut hue = self.step as f32 / STRIP_LENGTH as f32;
         for y in 0..STRIP_LENGTH {
-            for x in 0..12 {
+            for x in 0..STRIP_NUM {
                 let pos = (x * STRIP_LENGTH + y) as isize;
                 led_strip.set_led(pos, Color::from_hsv(hue, 1.0, 0.03));
             }

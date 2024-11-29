@@ -1,7 +1,6 @@
-use crate::{random, ledstrip::LEDStrip, led::Color, interface::Interface};
+use crate::{random, conf::NUM_LED, conf::STRIP_NUM, ledstrip::LEDStrip, led::Color, interface::Interface};
 
-const NUM_LED: usize = 720;
-const NOVA_PROB: u8 = 32;
+const NOVA_PROB: u8 = 3;
 
 pub struct Stars {
     sky_color: Color,
@@ -25,7 +24,8 @@ impl Stars {
     }
 
     pub fn process(&mut self, led_strip: &mut LEDStrip) {
-        if self.random.value8() < NOVA_PROB {
+        let nova_prob = NOVA_PROB * STRIP_NUM as u8;
+        if self.random.value8() < nova_prob {
             let pos = self.random.value32(NUM_LED as u32) as usize;
             led_strip.set_led(pos as isize, self.star_color);
             led_strip.led_mut(pos).set_target_flickering(self.sky_color, 2, 96);
