@@ -52,6 +52,7 @@ fn main() -> ! {
     let mut particle_crash = ParticleCrash::new();
 
     loop {
+        particle_crash.show_spiral(&mut interface);
         particle_crash.show(&mut interface);
         fire_green.show(&mut interface);
         hue_spiral.show_lift(&mut interface);
