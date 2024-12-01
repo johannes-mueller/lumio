@@ -3,7 +3,7 @@ use crate::{ledstrip::LEDStrip, conf::*, led::{Color, self}, interface::Interfac
 use crate::button::ButtonState;
 
 const ISTRIP_LENGTH: isize = STRIP_LENGTH as isize;
-const SPARK_NUM: usize = STRIP_NUM * SPARKS_PER_STRIP;
+pub const SPARK_NUM: usize = STRIP_NUM * SPARKS_PER_STRIP;
 
 const ACCEL: isize = 24;
 
@@ -22,7 +22,16 @@ impl MonoSpark {
             engine: SparkEngine::new(strip),
             hue: 0.0,
             decay: 255,
-            current_brightness: 0
+            current_brightness: 0,
+        }
+    }
+
+    pub fn new_noaccel(strip: usize) -> MonoSpark {
+        MonoSpark {
+            engine: SparkEngine::new_noaccel(strip),
+            hue: 0.0,
+            decay: 255,
+            current_brightness: 0,
         }
     }
 
@@ -30,25 +39,29 @@ impl MonoSpark {
         self.engine.current_speed
     }
 
+    pub fn current_position(&self) -> isize {
+        self.engine.current_position()
+    }
+
     pub fn is_active(&self) -> bool {
-        self.engine.is_active()
+        self.engine.is_active() && (self.current_brightness != 0)
     }
 
     pub fn deactivate(&mut self) {
         self.engine.deactivate();
     }
 
-    pub fn reset(&mut self, hue: f32, initial_speed: isize, decay: u8, initial_brightness: u8) {
+    pub fn reset(&mut self, hue: f32, initial_speed: isize, decay: u8, initial_brightness: u8, position: isize) {
         self.hue = hue;
         self.decay = decay;
         self.current_brightness = initial_brightness;
-        self.engine.reset(initial_speed, 0);
+        self.engine.reset(initial_speed, position);
     }
 
     pub fn process(&mut self, led_strip: &mut LEDStrip) {
         let color = Color::from_hsv(self.hue, 1.0, self.current_brightness as f32 / 255.0);
         self.engine.process(led_strip, color);
-        if self.engine.going_down() {
+        if self.engine.going_down() || self.engine.accel == 0 {
             self.current_brightness = led::decay(self.current_brightness, 0, self.decay);
         }
     }
@@ -61,6 +74,7 @@ pub struct ColorSpark {
     decay: f32,
     current_sat: f32
 }
+
 
 impl ColorSpark {
     pub fn new(strip: usize) -> ColorSpark {
@@ -76,11 +90,15 @@ impl ColorSpark {
         self.engine.is_active()
     }
 
-    pub fn reset(&mut self, hue: f32, decay: f32, initial_speed: isize) {
+    pub fn reset(&mut self, hue: f32, decay: f32, initial_speed: isize, position: isize) {
         self.hue = hue;
         self.decay = decay;
         self.current_sat = 0.0;
-        self.engine.reset(initial_speed, 0);
+        self.engine.reset(initial_speed, position);
+    }
+
+    pub fn current_position(&self) -> isize {
+        self.engine.current_position()
     }
 
     pub fn deactivate(&mut self) {
@@ -125,7 +143,7 @@ impl FallingSparks {
 
     pub fn reset(&mut self, initial_speed: isize, initial_position: isize) {
         self.initial_speed = initial_speed;
-        self.engine.reset(initial_speed, initial_position << 6);
+        self.engine.reset(initial_speed, initial_position);
     }
 
     pub fn process(&mut self, led_strip: &mut LEDStrip) {
@@ -138,6 +156,7 @@ struct SparkEngine {
     strip: isize,
     current_speed: isize,
     current_position: isize,
+    accel: isize
 }
 
 impl SparkEngine {
@@ -146,12 +165,22 @@ impl SparkEngine {
             strip: strip as isize,
             current_speed: 0,
             current_position: -1,
+            accel: ACCEL
+        }
+    }
+
+    pub fn new_noaccel(strip: usize) -> SparkEngine {
+        SparkEngine {
+            strip: strip as isize,
+            current_speed: 0,
+            current_position: -1,
+            accel: 0
         }
     }
 
     fn reset(&mut self, initial_speed: isize, initial_position: isize) {
         self.current_speed = initial_speed;
-        self.current_position = initial_position;
+        self.current_position = initial_position << 6;
     }
 
     fn is_active(&self) -> bool {
@@ -162,15 +191,20 @@ impl SparkEngine {
         self.current_position = -1;
     }
 
+    fn current_position(&self) -> isize {
+        self.current_position >> 6
+    }
+
     fn going_down(&self) -> bool {
         self.current_speed < 0
     }
 
     fn process(&mut self, led_strip: &mut LEDStrip, color: Color) {
-        let start_pos = ISTRIP_LENGTH*self.strip;
         if !self.is_active() {
             return;
         }
+
+        let start_pos = ISTRIP_LENGTH*self.strip;
 
         let next_position = self.current_position + self.current_speed;
 
@@ -180,7 +214,7 @@ impl SparkEngine {
         }
 
         self.current_position = next_position;
-        self.current_speed = ((self.current_speed << 2 ) - ACCEL) >> 2 ;
+        self.current_speed = ((self.current_speed << 2 ) - self.accel) >> 2 ;
     }
 }
 
@@ -217,14 +251,14 @@ impl FireWorks {
                         let speed = interface.random().value8() as isize;
                         let decay = interface.random().value8() >> 2;
                         let brightness = 127 + interface.random().value8() % 128;
-                        sp.reset(hue, speed, decay, brightness);
+                        sp.reset(hue, speed, decay, brightness, 0);
                     };
                     for strip in 0..STRIP_NUM {
                         let start = strip * SPARKS_PER_STRIP;
                         let end = start + SPARKS_PER_STRIP;
                         let speed = (start..end).map(|i| self.mono_sparks[i].speed()).max().unwrap();
                         let decay = 0.1;
-                        self.color_sparks[strip].reset(hue + 60./360. % 1.0, decay, speed);
+                        self.color_sparks[strip].reset(hue + 60./360. % 1.0, decay, speed, 0);
                     };
                 } else {
                     let _ = interface.led_off();
