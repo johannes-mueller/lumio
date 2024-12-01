@@ -1,6 +1,6 @@
 # A LED strip flower for the RP-Pico 2040
 
-This is a bad weather afternoon hack during that I did last November to
+This is a bad weather afternoon hack during that I did in November 2023 to
 decorate [our Esperanto assembly](https://events.ccc.de/congress/2023/hub/en/assembly/esperanto/)
 at the [37c3](https://events.ccc.de/congress/2023/infos/startpage.html).  Since
 many that came across asked for it, I've published the source code. It's now by no
@@ -20,8 +20,8 @@ have to check it when I get home with my osci.
 
 I've chosen the RP-2040 for the project for two reasons.
 
-* It has two SPIs (one of which is not working ☹️), as I was not able to run all
-  the 24 strips on one SPI.
+* It has two SPIs. The plan was to have 24 LED strips with 60 LEDs each, so
+  1440 LEDs in total. So each SPI handles 720 LEDs.
 
 * The SPIs of the RP-2040 are said to deal with 5V quite well and as it turns
   out, I haven't experienced logic voltage issues – well maybe some small ones.
