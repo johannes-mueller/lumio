@@ -12,6 +12,7 @@ pub struct Color {
 }
 
 pub const WHITE: Color = Color { r: 255, g: 255, b: 255 };
+pub const RED: Color = Color { r: 255, g: 0, b : 0};
 pub const BLUE: Color = Color { r: 0, g: 0, b: 255 };
 pub const GREEN: Color = Color { r: 0, g: 255, b: 0 };
 pub const YELLOW: Color = Color { r: 255, g: 255, b: 0 };
@@ -44,19 +45,6 @@ impl Color {
             g: float_to_uint((g+m) * 255.0) as u8,
             b: float_to_uint((b+m) * 255.0) as u8,
         }
-    }
-
-    pub fn from_tempeature(temperature: u8) -> Color {
-        let t192 = scale8(temperature, 191);
-        let heatramp = (t192 & 0x3f) << 2;
-
-        if t192 & 0x80 != 0 {
-            return Color { r: 255, g: 255, b: heatramp }
-        }
-        if t192 & 0x40 != 0 {
-            return Color { r: 255, g: heatramp, b: 0 }
-        }
-        Color { r: heatramp, g: 0, b: 0 }
     }
 
     pub fn brightness(&self) -> u8 {

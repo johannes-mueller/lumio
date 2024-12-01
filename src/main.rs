@@ -27,7 +27,7 @@ mod sparks;
 
 use interface::Interface;
 
-use led::{WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
+use led::{WHITE, YELLOW, RED, GREEN, DARK_BLUE, DARK_GREEN};
 use snake::SnakeShow;
 use fire::Fire;
 use stars::Stars;
@@ -40,7 +40,8 @@ fn main() -> ! {
 
     let mut hue_spiral = HueSpiral::new();
     let mut fireworks = FireWorks::new();
-    let mut fire = Fire::new();
+    let mut fire_red = Fire::new_red();
+    let mut fire_green = Fire::new_green();
     let mut eu_stars = Stars::new(DARK_BLUE, YELLOW);
     let mut eo_stars = Stars::new(DARK_GREEN, WHITE);
     let mut falling_sparks = SparkFall::new();
@@ -48,6 +49,7 @@ fn main() -> ! {
     let mut snake_show = SnakeShow::new();
 
     loop {
+        fire_green.show(&mut interface);
         hue_spiral.show_lift(&mut interface);
         fireworks.show(&mut interface);
         hue_spiral.show_swirl(&mut interface);
@@ -55,7 +57,7 @@ fn main() -> ! {
         snake_show.show(&mut interface);
         falling_sparks.show(&mut interface);
         eu_stars.show(&mut interface);
-        fire.show(&mut interface);
+        fire_red.show(&mut interface);
         eo_stars.show(&mut interface);
     }
 }
