@@ -25,6 +25,7 @@ mod spiral;
 mod huewave;
 mod sparks;
 mod particle_crash;
+mod sine;
 
 use interface::Interface;
 
@@ -34,7 +35,8 @@ use fire::Fire;
 use stars::Stars;
 use spiral::HueSpiral;
 use sparks::{FireWorks, SparkFall, SnowSparks};
-use particle_crash::{ParticleCrash};
+use particle_crash::ParticleCrash;
+use sine::SineShow;
 
 #[entry]
 fn main() -> ! {
@@ -50,8 +52,10 @@ fn main() -> ! {
     let mut snow_sparks = SnowSparks::new();
     let mut snake_show = SnakeShow::new();
     let mut particle_crash = ParticleCrash::new();
+    let mut sine_show = SineShow::new();
 
     loop {
+        sine_show.show(&mut interface);
         particle_crash.show_spiral(&mut interface);
         fire_green.show(&mut interface);
         hue_spiral.show_lift(&mut interface);
