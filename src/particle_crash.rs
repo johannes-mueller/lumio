@@ -71,7 +71,7 @@ impl SmallParticle {
 
     fn deactivate(&mut self) { self.current_position = -1 }
 
-    fn activate(&mut self) { self.current_position = 0 }
+    fn activate(&mut self) { self.current_position = 1 }
 
 
     fn process(&mut self, led_strip: &mut LEDStrip) {
@@ -82,7 +82,7 @@ impl SmallParticle {
         let pos = ISTRIP_LENGTH * self.strip + STRIP_LENGTH as isize - self.current_position;
         led_strip.set_led(pos, WHITE);
 
-        self.current_position += 2;
+        self.current_position += 1;
 
         if self.current_position > STRIP_LENGTH as isize {
             self.deactivate();
@@ -118,6 +118,10 @@ impl ParticleCrash {
         let bp = &mut self.big_particles[strip];
         let sp = &mut self.small_particles[strip];
 
+        if !bp.is_active() {
+            return
+        }
+
         if bp.current_position > ISTRIP_LENGTH - sp.current_position {
             let start = strip * SPARKS_PER_STRIP;
             let end = start + SPARKS_PER_STRIP;
@@ -150,20 +154,14 @@ impl ParticleCrash {
     }
 
     fn activate_for_spiral(&mut self, strip: usize) {
-        let no_crash_on_strip = self.no_crash_on_strip(strip);
-
         let bp = &mut self.big_particles[strip];
         let sp = &mut self.small_particles[strip];
 
-        if !sp.is_active() && bp.is_active()  && strip == self.step {
+        if !sp.is_active() && strip * 2 == self.step {
             sp.activate();
         }
 
-        if self.sparks.iter().any(|s| s.is_active()) {
-            return
-        }
-
-        if !bp.is_active() {
+        if !bp.is_active() && strip * 2 == self.step {
             bp.activate();
         }
     }
@@ -199,7 +197,7 @@ impl ParticleCrash {
 
 
             if !self.big_particles.iter().any(|p| p.is_active()) {
-                self.step = 0;
+                //self.step = 0;
                 center_hue = (center_hue + 1.0 / 7.0);
             }
 
@@ -219,7 +217,11 @@ impl ParticleCrash {
                 }
             };
 
-            self.step = (self.step+1) % STRIP_NUM;
+            self.step = (self.step+1) % (STRIP_NUM * 2);
+
+            if self.step == 0 {
+                center_hue = (center_hue + 1.0 / 7.0);
+            }
 
             interface.write_spi();
             if interface.do_next() {
