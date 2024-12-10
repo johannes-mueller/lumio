@@ -67,21 +67,26 @@ pub struct SineShow {
 
 impl SineShow {
     pub fn new() -> SineShow {
-        SineShow { sine: Sine::new(30, 504, 20) }
+        SineShow { sine: Sine::new(30, 502, 28) }
     }
 
     pub fn show(&mut self, interface: &mut Interface) {
-        let mut accel: isize = 0;
+        let mut hue = 0.0f32;
         loop {
             interface.led_strip().black();
 
             for i in 0..3*STRIP_NUM {
+                let strip_begin = (i % STRIP_NUM * STRIP_LENGTH) as isize;
                 let pos = self.sine.process();
-                interface.led_strip().set_led((i % STRIP_NUM * STRIP_LENGTH) as isize + pos, WHITE);
-            }
+                interface.led_strip().set_led(strip_begin + pos, WHITE);
 
-            self.sine.set_elastic(492);
-            accel = (accel + 1) % (16 << 4);
+                let color = Color::from_hsv(hue, 1.0, 0.25);
+                for p in 0..pos {
+                    interface.led_strip().set_led(strip_begin + p, color);
+                }
+
+                hue += 5.0/360.0;
+            }
 
             interface.write_spi();
             if interface.do_next() {
