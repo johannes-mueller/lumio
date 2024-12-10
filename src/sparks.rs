@@ -117,6 +117,8 @@ impl ColorSpark {
 pub struct FallingSparks {
     engine: SparkEngine,
     color: Color,
+    hue: Option<f32>,
+    sat: f32,
     initial_speed: isize
 }
 
@@ -125,6 +127,8 @@ impl FallingSparks {
         FallingSparks {
             engine: SparkEngine::new(strip),
             color,
+            hue: None,
+            sat: 0.0,
             initial_speed: 0
         }
     }
@@ -141,13 +145,29 @@ impl FallingSparks {
         self.engine.deactivate();
     }
 
+    pub fn set_hue(&mut self, hue: f32) -> &mut FallingSparks {
+        self.hue = Some(hue);
+        self.sat = 1.0;
+        self
+    }
+
     pub fn reset(&mut self, initial_speed: isize, initial_position: isize) {
         self.initial_speed = initial_speed;
         self.engine.reset(initial_speed, initial_position);
     }
 
+    pub fn fade(&mut self) -> &mut FallingSparks {
+        self.sat *= 0.7;
+        self
+    }
+
     pub fn process(&mut self, led_strip: &mut LEDStrip) {
-        self.engine.process(led_strip, self.color);
+        let color =match self.hue {
+            Some(hue) => Color::from_hsv(hue, self.sat, 0.5),
+            None => self.color
+        };
+        //self.sat *= 0.99;
+        self.engine.process(led_strip, color);
     }
 }
 
@@ -297,6 +317,7 @@ impl SnowSparks {
     }
 
     pub fn show(&mut self, interface: &mut Interface) {
+        let mut hue = 1.0f32;
         loop {
             interface.led_strip().black();
             for fs in self.sparks.iter_mut() {
@@ -309,10 +330,11 @@ impl SnowSparks {
                             s => (s * 4) / 5
                         };
                         if speed > 1 {
-                            fs.reset(speed, 0);
+                            fs.fade().reset(speed, 0);
                         }
                     } else if interface.random().value() < SPARK_PROB * 0.7 {
-                        fs.reset(0, STRIP_LENGTH as isize - 1);
+                        fs.set_hue(hue).reset(0, STRIP_LENGTH as isize - 1);
+                        hue = (hue + 5.0/360.0) % 1.0;
                     }
                 }
             }
