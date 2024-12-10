@@ -53,17 +53,17 @@ fn main() -> ! {
 
     loop {
         particle_crash.show_spiral(&mut interface);
-        particle_crash.show(&mut interface);
         fire_green.show(&mut interface);
         hue_spiral.show_lift(&mut interface);
         fireworks.show(&mut interface);
         hue_spiral.show_swirl(&mut interface);
         snow_sparks.show(&mut interface);
+        eo_stars.show(&mut interface);
+        particle_crash.show(&mut interface);
         snake_show.show(&mut interface);
         falling_sparks.show(&mut interface);
         eu_stars.show(&mut interface);
         fire_red.show(&mut interface);
-        eo_stars.show(&mut interface);
     }
 }
 
