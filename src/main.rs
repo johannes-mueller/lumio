@@ -55,6 +55,7 @@ fn main() -> ! {
     let mut sine_show = SineShow::new();
 
     loop {
+        sine_show.show_2(&mut interface);
         sine_show.show(&mut interface);
         particle_crash.show_spiral(&mut interface);
         fire_green.show(&mut interface);

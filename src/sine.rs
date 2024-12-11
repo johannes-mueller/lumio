@@ -1,7 +1,7 @@
 use crate::{
     conf::*,
     interface::Interface,
-    led::{self, Color, BLACK, WHITE},
+    led::{self, Color, DARK_BLUE, WHITE},
     ledstrip::LEDStrip,
     math8::scale8
 };
@@ -71,6 +71,7 @@ impl SineShow {
     }
 
     pub fn show(&mut self, interface: &mut Interface) {
+        self.sine = Sine::new(30, 502 , 28);
         let mut hue = 0.0f32;
         let hue_step = STRIP_NUM as f32 / 360.0;
         loop {
@@ -123,6 +124,37 @@ impl SineShow {
         }
     }
 
+    pub fn show_2(&mut self, interface: &mut Interface) {
+        self.sine = Sine::new(40, 1100 , 12);
+        loop {
+            interface.led_strip().black();
+
+            for i in 0..STRIP_NUM {
+                let strip_begin = (i % STRIP_NUM * STRIP_LENGTH) as isize;
+
+                self.sine.process();
+                let pos = self.sine.process();
+                for p in 0..pos {
+                    let hue = if interface.random().value8() < 32 {
+                        random_hue_around_given(0.50, interface)
+                    } else {
+                        0.63
+                    };
+                    interface.led_strip().set_led(strip_begin + p, Color::from_hsv(hue, 1.0, 0.25));
+                }
+
+            }
+
+            interface.write_spi();
+            if interface.do_next() {
+                interface.led_strip().black();
+                let _ = interface.led_off();
+                break;
+            }
+        }
+    }
+
+
     fn sort(&self, p1: isize, p2: isize, p3: isize) -> (isize, isize, isize) {
         if p1 < p2 {
             if p2 < p3 {
@@ -142,4 +174,9 @@ impl SineShow {
             }
         }
     }
+}
+
+
+fn random_hue_around_given(center_hue: f32, interface: &mut Interface) -> f32 {
+    (center_hue - interface.random().value() / 6.0) % 1.0
 }
