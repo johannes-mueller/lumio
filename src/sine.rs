@@ -72,6 +72,7 @@ impl SineShow {
 
     pub fn show(&mut self, interface: &mut Interface) {
         let mut hue = 0.0f32;
+        let hue_step = STRIP_NUM as f32 / 360.0;
         loop {
             interface.led_strip().black();
 
@@ -90,23 +91,28 @@ impl SineShow {
 
                 let (pos_1, pos_2, pos_3) = self.sort(pos_1, pos_2, pos_3);
 
+                hue += 15.0 / 360.0;
+
+                let color = Color::from_hsv(hue, 1.0, 0.25);
+
+                // for p in 0..pos_1 {
+                //     interface.led_strip().set_led(strip_begin + p, color);
+                // }
+
                 let color = Color::from_hsv(hue, 1.0, 0.25);
 
                 for p in pos_1+1..pos_2 {
                     interface.led_strip().set_led(strip_begin + p, color);
                 }
 
-                hue += 5.0/360.0;
-
-                let color = Color::from_hsv(hue, 1.0, 0.25);
+                let color = Color::from_hsv(hue+0.5, 1.0, 0.25);
 
                 for p in pos_2+1..pos_3 {
                     interface.led_strip().set_led(strip_begin + p, color);
                 }
-
-                hue += 10.0/360.0;
-
             }
+
+            hue += hue_step / 20.0;
 
             interface.write_spi();
             if interface.do_next() {
