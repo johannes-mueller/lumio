@@ -75,17 +75,37 @@ impl SineShow {
         loop {
             interface.led_strip().black();
 
-            for i in 0..3*STRIP_NUM {
+            let wave_pos: [isize; 3*STRIP_NUM] = core::array::from_fn(|_i| self.sine.process());
+
+            for i in 0..STRIP_NUM {
                 let strip_begin = (i % STRIP_NUM * STRIP_LENGTH) as isize;
-                let pos = self.sine.process();
-                interface.led_strip().set_led(strip_begin + pos, WHITE);
+
+                let pos_1 = wave_pos[i];
+                let pos_2 = wave_pos[i+STRIP_NUM];
+                let pos_3 = wave_pos[i+2*STRIP_NUM];
+
+                interface.led_strip().set_led(strip_begin + pos_1, WHITE);
+                interface.led_strip().set_led(strip_begin + pos_2, WHITE);
+                interface.led_strip().set_led(strip_begin + pos_3, WHITE);
+
+                let (pos_1, pos_2, pos_3) = self.sort(pos_1, pos_2, pos_3);
 
                 let color = Color::from_hsv(hue, 1.0, 0.25);
-                for p in 0..pos {
+
+                for p in pos_1+1..pos_2 {
                     interface.led_strip().set_led(strip_begin + p, color);
                 }
 
                 hue += 5.0/360.0;
+
+                let color = Color::from_hsv(hue, 1.0, 0.25);
+
+                for p in pos_2+1..pos_3 {
+                    interface.led_strip().set_led(strip_begin + p, color);
+                }
+
+                hue += 10.0/360.0;
+
             }
 
             interface.write_spi();
@@ -93,6 +113,26 @@ impl SineShow {
                 interface.led_strip().black();
                 let _ = interface.led_off();
                 break;
+            }
+        }
+    }
+
+    fn sort(&self, p1: isize, p2: isize, p3: isize) -> (isize, isize, isize) {
+        if p1 < p2 {
+            if p2 < p3 {
+                return (p1, p2, p3)
+            } else if p1 < p3 {
+                return (p1, p3, p2)
+            } else {
+                return (p3, p1, p2)
+            }
+        } else {
+            if p1 < p3 {
+                return (p2, p1, p3)
+            } else if p2 < p3 {
+                return (p2, p3, p1)
+            } else {
+                return (p3, p2, p1)
             }
         }
     }
