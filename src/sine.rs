@@ -125,14 +125,13 @@ impl SineShow {
     }
 
     pub fn show_2(&mut self, interface: &mut Interface) {
-        self.sine = Sine::new(40, 1100 , 12);
+        self.sine = Sine::new(40, 9800 , 8);
         loop {
             interface.led_strip().black();
 
             for i in 0..STRIP_NUM {
                 let strip_begin = (i % STRIP_NUM * STRIP_LENGTH) as isize;
 
-                self.sine.process();
                 let pos = self.sine.process();
                 for p in 0..pos {
                     let hue = if interface.random().value8() < 32 {
