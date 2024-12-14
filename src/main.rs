@@ -58,10 +58,9 @@ fn main() -> ! {
     let mut planet_show = PlanetShow::new();
     let mut sea_wave_chaos = SeaWave::new(Some(9800), 8);
     let mut sea_wave_order = SeaWave::new(Some(1050), 12);
-    let mut sea_wave_varying = SeaWave::new(None, 12);
+    //let mut sea_wave_varying = SeaWave::new(None, 12);
 
     loop {
-        sea_wave_varying.show(&mut interface);
         planet_show.show(&mut interface);
         sine_show.show(&mut interface);
         particle_crash.show_spiral(&mut interface);

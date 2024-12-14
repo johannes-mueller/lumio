@@ -11,12 +11,6 @@ use crate::{
 const DELTA_T: f32 = 10.0;
 
 pub struct Planet {
-    p_rad_initial: f32,
-    p_phi_initial: f32,
-
-    d_rad_initial: f32,
-    d_phi_initial: f32,
-
     p_rad: f32,
     p_phi: f32,
 
@@ -29,23 +23,7 @@ pub struct Planet {
 
 impl Planet {
     pub fn new(p_rad: f32, p_phi: f32, d_rad: f32, d_phi: f32, color: Color) -> Planet {
-        Planet{
-            p_rad_initial: p_rad,
-            p_phi_initial: p_phi,
-            d_rad_initial: d_rad,
-            d_phi_initial: d_phi,
-
-            p_rad, p_phi, d_rad, d_phi,
-
-            color
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.p_rad = self.p_rad_initial;
-        self.p_phi = self.p_phi_initial;
-        self.d_rad = self.d_rad_initial;
-        self.d_phi = self.d_phi_initial;
+        Planet{p_rad, p_phi, d_rad, d_phi, color}
     }
 
     pub fn new_vis_viva(rad: f32, a: f32, phi: f32, direction: f32, color: Color) -> Planet {
@@ -54,18 +32,34 @@ impl Planet {
 
     }
 
+    fn step_rad(&mut self, n: usize) {
+        let delta_t = DELTA_T / n as f32;
+        for _ in 0..n {
+            let dd_rad = self.p_rad * self.d_phi * self.d_phi - 1.0 / (self.p_rad * self.p_rad);
+            self.d_rad += dd_rad * delta_t;
+            self.p_rad += self.d_rad * delta_t;
+        }
+    }
+
+    fn step_phi(&mut self, n: usize) {
+        let delta_t = DELTA_T / n as f32;
+        for _ in 0..n {
+        let dd_phi = - 2.0 * self.d_rad * self.d_phi / self.p_rad;
+        self.d_phi += dd_phi * delta_t;
+        self.p_phi += self.d_phi * delta_t;
+        }
+    }
+
     fn process(&mut self) -> (isize, isize) {
         if self.p_rad <= 0.0 {
             return (0, 0)
         }
 
-        let dd_rad = self.p_rad * self.d_phi * self.d_phi - 1.0 / (self.p_rad * self.p_rad);
-        self.d_rad += dd_rad * DELTA_T;
-        self.p_rad += self.d_rad * DELTA_T;
-
-        let dd_phi = - 2.0 * self.d_rad * self.d_phi / self.p_rad;
-        self.d_phi += dd_phi * DELTA_T;
-        self.p_phi += self.d_phi * DELTA_T;
+        let step_num_phi = fabsf(10000.0 * self.d_phi);
+        let step_num_rad = fabsf(100.0 * self.d_rad);
+        let step_num = (step_num_rad + step_num_phi).max(1.0) as usize;
+        self.step_rad(step_num);
+        self.step_phi(step_num);
 
         let p_phi = if self.p_phi < 0.0 {
             2.0 * PI + self.p_phi
@@ -77,8 +71,8 @@ impl Planet {
 
         let p_rad = self.p_rad;
 
-        if fabsf(self.p_phi - self.p_phi_initial) > 2.0 * PI {
-            self.reset();
+        if self.p_phi < 0.0 {
+            self.p_phi += 2.0 * PI;
         }
 
         (p_phi as isize, p_rad as isize)
