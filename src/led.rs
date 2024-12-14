@@ -55,7 +55,7 @@ impl Color {
 #[derive(Clone, Copy)]
 pub struct Led {
     current: Color,
-    target: Color,
+    target: Option<Color>,
     decay: u8,
     flicker: u8,
     current_flicker: u8
@@ -65,7 +65,7 @@ impl Led {
     pub fn new() -> Led {
         Led {
             current: BLACK,
-            target: BLACK,
+            target: None,
             decay: 0,
             flicker: 0,
             current_flicker: 0
@@ -73,7 +73,7 @@ impl Led {
     }
 
     pub fn set_color(&mut self, color: Color) {
-        self.target = color;
+        self.target = None;
         self.current = color;
         self.decay = 0;
         self.flicker = 0;
@@ -81,7 +81,7 @@ impl Led {
 
     pub fn set_target(&mut self, color: Color, decay: u8) {
         self.decay = decay;
-        self.target = color;
+        self.target = Some(color);
         self.flicker = 0;
     }
 
@@ -96,12 +96,19 @@ impl Led {
     }
 
     pub fn step(&mut self, random: &mut random::Random) {
-        self.current.r = decay(self.current.r, self.target.r, self.decay);
-        self.current.g = decay(self.current.g, self.target.g, self.decay);
-        self.current.b = decay(self.current.b, self.target.b, self.decay);
-        let is_dark = self.current.brightness() < self.target.brightness();
-        if self.current == self.target || is_dark  && self.decay != 0 {
-            self.flicker = 0;
+        match self.target {
+            Some(target) => {
+                self.current.r = decay(self.current.r, target.r, self.decay);
+                self.current.g = decay(self.current.g, target.g, self.decay);
+                self.current.b = decay(self.current.b, target.b, self.decay);
+                let is_dark = self.current.brightness() < target.brightness();
+                if self.current == target || is_dark  && self.decay != 0 {
+                    self.flicker = 0;
+                    self.target = None;
+                }
+            },
+            None => {
+            }
         }
 
         if self.flicker != 0 {
@@ -109,6 +116,10 @@ impl Led {
             let offset = 0xff - brightness >> 1;
             self.current_flicker = scale8(random.value8(), brightness) + offset;
         }
+    }
+
+    pub fn is_black(&self) -> bool {
+        self.target.is_none() && self.r() + self.g() + self.b() == 0
     }
 
     pub fn r(&self) -> u8 { self.current().r }
