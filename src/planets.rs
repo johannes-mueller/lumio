@@ -99,7 +99,7 @@ impl PlanetShow {
     pub fn show(&mut self, interface: &mut Interface) {
         let mut a = 1.0;
         let mut hue = 0.0;
-        let mut planets: [Planet; NUM_PLANETS] = core::array::from_fn(|i| {
+        let mut planets: [Planet; NUM_PLANETS] = core::array::from_fn(|_i| {
             let _a = a;
             a *= 1.1;
             hue += 1.0/(NUM_PLANETS as f32);
@@ -117,12 +117,12 @@ impl PlanetShow {
             Planet::new_vis_viva(rad, _a, phi, direction, color)
         });
         interface.led_strip().black();
-        for n in (0..STRIP_NUM) {
+        for n in 0..STRIP_NUM {
             let pos = n * STRIP_LENGTH;
             interface.led_strip().led_mut(pos).set_color_flickering(YELLOW, 192);
         }
         loop {
-            for n in (0..STRIP_NUM) {
+            for n in 0..STRIP_NUM {
                 let pos = n * STRIP_LENGTH + 1;
                 if interface.random().value8() < 8 && interface.led_strip().led(pos).is_black() {
                     interface.led_strip().set_led(pos as isize, YELLOW);

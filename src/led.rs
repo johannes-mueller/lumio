@@ -11,13 +11,21 @@ pub struct Color {
     pub b: u8
 }
 
+#[allow(dead_code)]
 pub const WHITE: Color = Color { r: 255, g: 255, b: 255 };
+#[allow(dead_code)]
 pub const RED: Color = Color { r: 255, g: 0, b : 0};
+#[allow(dead_code)]
 pub const BLUE: Color = Color { r: 0, g: 0, b: 255 };
+#[allow(dead_code)]
 pub const GREEN: Color = Color { r: 0, g: 255, b: 0 };
+#[allow(dead_code)]
 pub const YELLOW: Color = Color { r: 255, g: 255, b: 0 };
+#[allow(dead_code)]
 pub const BLACK: Color = Color { r: 0, g: 0, b: 0 };
+#[allow(dead_code)]
 pub const DARK_BLUE: Color = Color { r: 0, g: 0, b: 16 };
+#[allow(dead_code)]
 pub const DARK_GREEN: Color = Color { r: 0, g: 16, b: 0 };
 
 

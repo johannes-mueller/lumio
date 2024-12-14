@@ -1,9 +1,7 @@
 use crate::{
     conf::*,
     interface::Interface,
-    led::{self, Color, DARK_BLUE, WHITE},
-    ledstrip::LEDStrip,
-    math8::scale8
+    led::{Color, WHITE},
 };
 
 

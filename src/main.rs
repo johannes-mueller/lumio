@@ -30,7 +30,7 @@ mod planets;
 
 use interface::Interface;
 
-use led::{WHITE, YELLOW, RED, GREEN, DARK_BLUE, DARK_GREEN};
+use led::{WHITE, YELLOW, DARK_BLUE, DARK_GREEN};
 use snake::SnakeShow;
 use fire::Fire;
 use stars::Stars;

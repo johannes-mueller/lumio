@@ -1,7 +1,7 @@
 use crate::{
     conf::*,
     interface::Interface,
-    led::{self, Color, BLACK, WHITE},
+    led::WHITE,
     ledstrip::LEDStrip,
     sparks::{MonoSpark, SPARK_NUM}
 };
@@ -198,7 +198,7 @@ impl ParticleCrash {
 
             if !self.big_particles.iter().any(|p| p.is_active()) {
                 //self.step = 0;
-                center_hue = (center_hue + 1.0 / 7.0);
+                center_hue = center_hue + 1.0 / 7.0;
             }
 
             for strip in 0..STRIP_NUM {
@@ -220,7 +220,7 @@ impl ParticleCrash {
             self.step = (self.step+1) % (STRIP_NUM * 2);
 
             if self.step == 0 {
-                center_hue = (center_hue + 1.0 / 7.0);
+                center_hue = center_hue + 1.0 / 7.0;
             }
 
             interface.write_spi();

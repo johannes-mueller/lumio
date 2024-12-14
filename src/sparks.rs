@@ -39,10 +39,6 @@ impl MonoSpark {
         self.engine.current_speed
     }
 
-    pub fn current_position(&self) -> isize {
-        self.engine.current_position()
-    }
-
     pub fn is_active(&self) -> bool {
         self.engine.is_active() && (self.current_brightness != 0)
     }
@@ -86,19 +82,11 @@ impl ColorSpark {
         }
     }
 
-    pub fn is_active(&self) -> bool {
-        self.engine.is_active()
-    }
-
     pub fn reset(&mut self, hue: f32, decay: f32, initial_speed: isize, position: isize) {
         self.hue = hue;
         self.decay = decay;
         self.current_sat = 0.0;
         self.engine.reset(initial_speed, position);
-    }
-
-    pub fn current_position(&self) -> isize {
-        self.engine.current_position()
     }
 
     pub fn deactivate(&mut self) {
@@ -209,10 +197,6 @@ impl SparkEngine {
 
     fn deactivate(&mut self) {
         self.current_position = -1;
-    }
-
-    fn current_position(&self) -> isize {
-        self.current_position >> 6
     }
 
     fn going_down(&self) -> bool {
