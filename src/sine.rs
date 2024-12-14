@@ -14,22 +14,8 @@ pub struct Sine {
     speed: isize
 }
 
-pub fn abs(v: isize) -> isize {
-    if v < 0 {
-        -v
-    } else {
-        v
-    }
-}
-
 pub fn scale(a: isize, b: isize) -> isize {
     (a * b) >> 8
-    // let abs = (abs(a) * abs(b)) >> 8;
-    // if (a < 0) ^ (b < 0) {
-    //     -abs
-    // } else {
-    //     abs
-    // }
 }
 
 impl Sine {
@@ -50,7 +36,7 @@ impl Sine {
     fn process(&mut self) -> isize {
         let pos: isize = self.current >> 6;
 
-        let accel = scale(self.elastic, (pos - self.center)) << 2;
+        let accel = scale(self.elastic, pos - self.center) << 2;
         self.speed = ((self.speed << 2 ) - accel) >> 2;
 
         self.current = self.current + self.speed;
@@ -96,12 +82,6 @@ impl SineShow {
 
                 let color = Color::from_hsv(hue, 1.0, 0.25);
 
-                // for p in 0..pos_1 {
-                //     interface.led_strip().set_led(strip_begin + p, color);
-                // }
-
-                let color = Color::from_hsv(hue, 1.0, 0.25);
-
                 for p in pos_1+1..pos_2 {
                     interface.led_strip().set_led(strip_begin + p, color);
                 }
@@ -124,36 +104,6 @@ impl SineShow {
         }
     }
 
-    pub fn show_2(&mut self, interface: &mut Interface) {
-        self.sine = Sine::new(40, 9800 , 8);
-        loop {
-            interface.led_strip().black();
-
-            for i in 0..STRIP_NUM {
-                let strip_begin = (i % STRIP_NUM * STRIP_LENGTH) as isize;
-
-                let pos = self.sine.process();
-                for p in 0..pos {
-                    let hue = if interface.random().value8() < 32 {
-                        random_hue_around_given(0.50, interface)
-                    } else {
-                        0.63
-                    };
-                    interface.led_strip().set_led(strip_begin + p, Color::from_hsv(hue, 1.0, 0.25));
-                }
-
-            }
-
-            interface.write_spi();
-            if interface.do_next() {
-                interface.led_strip().black();
-                let _ = interface.led_off();
-                break;
-            }
-        }
-    }
-
-
     fn sort(&self, p1: isize, p2: isize, p3: isize) -> (isize, isize, isize) {
         if p1 < p2 {
             if p2 < p3 {
@@ -175,6 +125,64 @@ impl SineShow {
     }
 }
 
+enum Elastic {
+    Constant(isize),
+    Varying(Sine)
+}
+
+pub struct SeaWave {
+    elastic: Elastic,
+    ampl: isize
+}
+
+impl SeaWave {
+    pub fn new(elastic: Option<isize>, ampl: isize) -> SeaWave {
+        let elastic = match elastic {
+            Some(v) => Elastic::Constant(v),
+            None => Elastic::Varying(Sine::new(1100, 12, 200))
+        };
+        SeaWave { elastic, ampl }
+    }
+
+    fn elastic(&mut self) -> isize {
+        match &mut self.elastic {
+            Elastic::Constant(v) => *v,
+            Elastic::Varying(sine) => sine.process()
+        }
+    }
+
+    pub fn show(&mut self, interface: &mut Interface) {
+        let mut sine = Sine::new(40, 0 , self.ampl);
+        loop {
+            interface.led_strip().black();
+
+            sine.set_elastic(self.elastic());
+
+            for i in 0..STRIP_NUM {
+                let strip_begin = (i % STRIP_NUM * STRIP_LENGTH) as isize;
+
+                let pos = sine.process();
+                for p in 0..pos {
+                    let hue = if interface.random().value8() < 32 {
+                        random_hue_around_given(0.50, interface)
+                    } else {
+                        0.63
+                    };
+                    interface.led_strip().set_led(strip_begin + p, Color::from_hsv(hue, 1.0, 0.25));
+                }
+
+            }
+
+            interface.write_spi();
+            if interface.do_next() {
+                interface.led_strip().black();
+                let _ = interface.led_off();
+                break;
+            }
+        }
+    }
+
+}
 
 fn random_hue_around_given(center_hue: f32, interface: &mut Interface) -> f32 {
     (center_hue - interface.random().value() / 6.0) % 1.0

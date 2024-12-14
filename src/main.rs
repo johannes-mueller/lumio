@@ -37,7 +37,7 @@ use stars::Stars;
 use spiral::HueSpiral;
 use sparks::{FireWorks, SparkFall, SnowSparks};
 use particle_crash::ParticleCrash;
-use sine::SineShow;
+use sine::{SeaWave, SineShow};
 use planets::PlanetShow;
 
 #[entry]
@@ -56,19 +56,24 @@ fn main() -> ! {
     let mut particle_crash = ParticleCrash::new();
     let mut sine_show = SineShow::new();
     let mut planet_show = PlanetShow::new();
+    let mut sea_wave_chaos = SeaWave::new(Some(9800), 8);
+    let mut sea_wave_order = SeaWave::new(Some(1050), 12);
+    let mut sea_wave_varying = SeaWave::new(None, 12);
 
     loop {
+        sea_wave_varying.show(&mut interface);
         planet_show.show(&mut interface);
-        sine_show.show_2(&mut interface);
         sine_show.show(&mut interface);
         particle_crash.show_spiral(&mut interface);
         fire_green.show(&mut interface);
         hue_spiral.show_lift(&mut interface);
+        sea_wave_chaos.show(&mut interface);
         fireworks.show(&mut interface);
         hue_spiral.show_swirl(&mut interface);
         snow_sparks.show(&mut interface);
         eo_stars.show(&mut interface);
         particle_crash.show(&mut interface);
+        sea_wave_order.show(&mut interface);
         snake_show.show(&mut interface);
         falling_sparks.show(&mut interface);
         eu_stars.show(&mut interface);
