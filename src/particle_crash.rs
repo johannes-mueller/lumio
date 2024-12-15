@@ -3,7 +3,7 @@ use crate::{
     interface::Interface,
     led::WHITE,
     ledstrip::LEDStrip,
-    sparks::{MonoSpark, SPARK_NUM}
+    sparks::Explosions
 };
 
 const ISTRIP_LENGTH: isize = STRIP_LENGTH as isize;
@@ -93,7 +93,7 @@ impl SmallParticle {
 pub struct ParticleCrash {
     big_particles: [BigParticle; STRIP_NUM],
     small_particles: [SmallParticle; STRIP_NUM],
-    sparks: [MonoSpark; SPARK_NUM],
+    explosions: Explosions,
     step: usize
 }
 
@@ -102,16 +102,9 @@ impl ParticleCrash {
         ParticleCrash {
             big_particles: core::array::from_fn(|i| i).map(|strip| BigParticle::new(strip)),
             small_particles: core::array::from_fn(|i| i).map(|strip| SmallParticle::new(strip)),
-            sparks: core::array::from_fn(|i| i).map(|n| MonoSpark::new_noaccel(n / SPARKS_PER_STRIP)),
+            explosions: Explosions::new(),
             step: 0
         }
-    }
-
-    fn no_crash_on_strip(&self, strip: usize) -> bool {
-        let start = strip * SPARKS_PER_STRIP;
-        let end = start + SPARKS_PER_STRIP;
-
-        !(start..end).any(|i| self.sparks[i].is_active())
     }
 
     fn handle_colision(&mut self, strip: usize, explosion_hue: f32, interface: &mut Interface) {
@@ -123,23 +116,16 @@ impl ParticleCrash {
         }
 
         if bp.current_position > ISTRIP_LENGTH - sp.current_position {
-            let start = strip * SPARKS_PER_STRIP;
-            let end = start + SPARKS_PER_STRIP;
-
-            for i in start..end {
-                let spark = &mut self.sparks[i];
-                let speed = (interface.random().value8()) as isize - 128;
-                spark.reset(explosion_hue, speed, 64, 255, bp.current_position);
-                //spark.reset(hue, 0.1, speed, current_position);
-            }
-
+            self.explosions.explode(
+                strip, bp.current_position as usize, explosion_hue, interface
+            );
             bp.deactivate();
             sp.deactivate();
         }
     }
 
     fn randomly_activate_particles_on_strip(&mut self, strip: usize, interface: &mut Interface) {
-        let no_crash_on_strip = self.no_crash_on_strip(strip);
+        let no_crash_on_strip = self.explosions.no_explosion_on_strip(strip);
 
         let bp = &mut self.big_particles[strip];
         let sp = &mut self.small_particles[strip];
@@ -178,9 +164,7 @@ impl ParticleCrash {
     fn do_show(&mut self, interface: &mut Interface, manor: Manor) {
         let mut center_hue = 0.0;
 
-        for s in self.sparks.iter_mut() {
-            s.deactivate();
-        }
+        self.explosions.reset();
         for bp in self.big_particles.iter_mut() {
             bp.deactivate();
         }
@@ -191,10 +175,7 @@ impl ParticleCrash {
         loop {
             interface.led_strip().black();
 
-            for spark in self.sparks.iter_mut() {
-                spark.process(&mut interface.led_strip())
-            };
-
+            self.explosions.process(interface);
 
             if !self.big_particles.iter().any(|p| p.is_active()) {
                 //self.step = 0;

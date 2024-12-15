@@ -61,6 +61,7 @@ fn main() -> ! {
     //let mut sea_wave_varying = SeaWave::new(None, 12);
 
     loop {
+//        sea_wave_varying.show(&mut interface);
         planet_show.show(&mut interface);
         sine_show.show(&mut interface);
         particle_crash.show_spiral(&mut interface);

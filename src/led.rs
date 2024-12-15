@@ -130,6 +130,10 @@ impl Led {
         self.target.is_none() && self.r() + self.g() + self.b() == 0
     }
 
+    pub fn is_flickering(&self) -> bool {
+        self.flicker != 0
+    }
+
     pub fn r(&self) -> u8 { self.current().r }
     pub fn g(&self) -> u8 { self.current().g }
     pub fn b(&self) -> u8 { self.current().b }

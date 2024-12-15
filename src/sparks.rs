@@ -55,6 +55,9 @@ impl MonoSpark {
     }
 
     pub fn process(&mut self, led_strip: &mut LEDStrip) {
+        if !self.is_active() {
+            return
+        }
         let color = Color::from_hsv(self.hue, 1.0, self.current_brightness as f32 / 255.0);
         self.engine.process(led_strip, color);
         if self.engine.going_down() || self.engine.accel == 0 {
@@ -369,5 +372,48 @@ impl SparkFall {
         for s in self.sparks.iter_mut() {
             s.deactivate();
         }
+    }
+}
+
+
+pub struct Explosions {
+    sparks: [MonoSpark; SPARK_NUM]
+}
+
+impl Explosions {
+    pub fn new() -> Explosions {
+        Explosions {
+            sparks: core::array::from_fn(|i| i).map(|n| MonoSpark::new_noaccel(n / SPARKS_PER_STRIP))
+        }
+    }
+
+    pub fn explode(&mut self, strip_num: usize, pos: usize, explosion_hue: f32, interface: &mut Interface) {
+        let start = strip_num * SPARKS_PER_STRIP;
+        let end = start + SPARKS_PER_STRIP;
+
+        for i in start..end {
+            let spark = &mut self.sparks[i];
+            let speed = (interface.random().value8()) as isize - 128;
+            spark.reset(explosion_hue, speed, 64, 255, pos as isize);
+        }
+    }
+
+    pub fn no_explosion_on_strip(&self, strip: usize) -> bool {
+        let start = strip * SPARKS_PER_STRIP;
+        let end = start + SPARKS_PER_STRIP;
+
+        !(start..end).any(|i| self.sparks[i].is_active())
+    }
+
+    pub fn reset(&mut self) {
+        for s in self.sparks.iter_mut() {
+            s.deactivate();
+        }
+    }
+
+    pub fn process(&mut self, interface: &mut Interface) {
+        for spark in self.sparks.iter_mut() {
+            spark.process(&mut interface.led_strip())
+        };
     }
 }
