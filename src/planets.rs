@@ -3,10 +3,7 @@ use core::f32::consts::PI;
 use libm::{fabsf, sqrtf};
 
 use crate::{
-    conf::*,
-    interface::{Interface},
-    led::{Color, BLACK, YELLOW},
-    sparks::Explosions
+    button::ButtonState, conf::*, interface::Interface, led::{Color, BLACK, YELLOW}, sparks::Explosions
 };
 
 const DELTA_T: f32 = 10.0;
@@ -96,7 +93,7 @@ impl Planet {
 
 
 pub struct PlanetShow {
-    explosions: Explosions
+    explosions: Explosions,
 }
 
 const NUM_PLANETS: usize = 10;
@@ -108,6 +105,9 @@ impl PlanetShow {
 
     pub fn show(&mut self, interface: &mut Interface) {
         let mut planets = initialize_planets(interface);
+        let mut with_collisions = true;
+
+        interface.led_on();
 
         interface.led_strip().black();
 
@@ -119,10 +119,21 @@ impl PlanetShow {
                 make_rest_of_sky_black(n, interface);
             }
 
-            self.handle_colisions(&mut planets, interface);
+            if with_collisions {
+                self.handle_colisions(&mut planets, interface);
+            }
 
             self.process_planets(&mut planets, interface);
             self.explosions.process(interface);
+
+            if interface.button_state() == ButtonState::LongPressed {
+                with_collisions = !with_collisions;
+                if with_collisions {
+                    let _ = interface.led_on();
+                } else {
+                    let _ = interface.led_off();
+                }
+            }
 
             interface.write_spi();
 

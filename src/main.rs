@@ -63,8 +63,8 @@ fn main() -> ! {
     loop {
 //        sea_wave_varying.show(&mut interface);
         planet_show.show(&mut interface);
-        sine_show.show(&mut interface);
         particle_crash.show_spiral(&mut interface);
+        sine_show.show(&mut interface);
         fire_green.show(&mut interface);
         hue_spiral.show_lift(&mut interface);
         sea_wave_chaos.show(&mut interface);
