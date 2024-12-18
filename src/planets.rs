@@ -3,7 +3,7 @@ use core::f32::consts::PI;
 use libm::{fabsf, sqrtf};
 
 use crate::{
-    button::ButtonState, conf::*, interface::Interface, led::{Color, BLACK, YELLOW}, sparks::Explosions
+    button::ButtonState, conf::*, interface::Interface, led::{Color, BLACK, YELLOW, WHITE}, sparks::Explosions
 };
 
 const DELTA_T: f32 = 10.0;
@@ -26,9 +26,27 @@ impl Planet {
         Planet{p_rad, p_phi, d_rad, d_phi, color, is_active: true}
     }
 
+    pub fn new_inactive() -> Planet {
+        Planet {p_rad: -1.0, p_phi: 0.0, d_rad: 0.0, d_phi: 0.0, color: BLACK, is_active: false}
+    }
+
     pub fn new_vis_viva(rad: f32, a: f32, phi: f32, direction: f32, color: Color) -> Planet {
         let v = sqrtf(fabsf((2.0/rad) - (1.0/(rad*a))));
         Planet::new(rad, phi, 0.0, direction * v/rad, color)
+    }
+
+    pub fn reset_hyperbolic(&mut self, rad: f32, phi: f32, direction: f32, color: Color) {
+        let v = sqrtf(6.0/rad);
+        let v_rad = -v * 0.995;
+        let v_phi = v * 0.0007;
+
+        self.p_rad = rad;
+        self.p_phi = phi;
+        self.d_rad = v_rad;
+        self.d_phi = direction * v_phi;
+        self.color = color;
+
+        self.is_active = true;
     }
 
     pub fn reset_phi(&mut self, phi: f32) {
@@ -55,6 +73,9 @@ impl Planet {
     }
 
     fn position(&self) -> (isize, isize) {
+        if !self.is_active {
+            return (0, 0);
+        }
         let p_phi = if self.p_phi < 0.0 {
             2.0 * PI + self.p_phi
         } else if self.p_phi > 2.0 * PI {
@@ -78,6 +99,9 @@ impl Planet {
         self.step_rad(step_num);
         self.step_phi(step_num);
 
+        if self.p_rad > 1000.0 {
+            self.is_active = false;
+        }
 
         if self.p_phi < 0.0 {
             self.p_phi += 2.0 * PI;
@@ -106,8 +130,9 @@ impl PlanetShow {
     pub fn show(&mut self, interface: &mut Interface) {
         let mut planets = initialize_planets(interface);
         let mut with_collisions = true;
-
         interface.led_on();
+
+        let mut hyperbolic_planet = Planet::new_inactive();
 
         interface.led_strip().black();
 
@@ -135,6 +160,22 @@ impl PlanetShow {
                 }
             }
 
+            if true{ //interface.button_state() == ButtonState::ShortPressed || interface.random().value8() < 2 {
+                if !hyperbolic_planet.is_active() {
+                    let phi = 0.0;//interface.random().value() * 2.0 * PI;
+                    let rad = 100.0;
+                    let direction = if interface.random().value8() < 128 {
+                        1.0
+                    } else {
+                        -1.0
+                    };
+                    let color = WHITE;
+                    hyperbolic_planet.reset_hyperbolic(rad, phi, direction, color);
+                }
+            }
+
+            process_planet(&mut hyperbolic_planet, interface);
+
             interface.write_spi();
 
             if interface.do_next() {
@@ -153,10 +194,7 @@ impl PlanetShow {
                     planet.reset_phi(interface.random().value() * 2.0 * PI);
                 }
             }
-            let (strip_num, pos) = planet.process();
-            if pos < STRIP_LENGTH as isize && pos > 0 && planet.is_active() {
-                interface.led_strip().set_led(flat_pos(strip_num, pos), planet.color);
-            }
+            process_planet(planet, interface);
         }
     }
 
@@ -176,6 +214,13 @@ impl PlanetShow {
                 }
             }
         }
+    }
+}
+
+fn process_planet(planet: &mut Planet, interface: &mut Interface) {
+    let (strip_num, pos) = planet.process();
+    if pos < STRIP_LENGTH as isize && pos > 0 && planet.is_active() {
+        interface.led_strip().set_led(flat_pos(strip_num, pos), planet.color);
     }
 }
 
