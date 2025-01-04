@@ -40,7 +40,7 @@ As it turns out the whole setup can take a quite some energy.  Letting all the
 LEDs shine completly white would pull way more than 10 A. That's why quite some
 thick cables (2.5 mm²) are used to feed the LED strips.  This is not sufficient
 if all the LEDS are full white.  In practice we don't have those bright
-programs.  The usual wants just take 3 A to 4 A.
+programs.  The usual ones just take 3 A to 4 A.
 
 
 ## Programming
