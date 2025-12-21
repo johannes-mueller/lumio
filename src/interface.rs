@@ -42,6 +42,8 @@ type MOSI1 = Pin<gpio::bank0::Gpio15, FunctionSpi, PullDown>;
 
 type Spi1Pinout = (MOSI1, SCLK1);
 
+const PERI_FEQUENCY: u32 = 450_000_000u32;
+const BAUD_RATE:  u32 = 8_000_000u32;
 
 pub struct Peripherals {
     timer: Option<Timer>,
@@ -115,7 +117,7 @@ impl Interface {
         let spi_pin_layout = (mosi, sclk);
 
         let spi0 = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
-            .init(&mut pac.RESETS, 450_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
+            .init(&mut pac.RESETS, PERI_FEQUENCY.Hz(), BAUD_RATE.Hz(), MODE_0);
 
         let sclk = pins.gpio14.into_function::<FunctionSpi>();
         let mosi = pins.gpio15.into_function::<FunctionSpi>();
@@ -124,7 +126,7 @@ impl Interface {
         let spi_pin_layout = (mosi, sclk);
 
         let spi1 = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
-            .init(&mut pac.RESETS, 450_000_000u32.Hz(), 8_000_000u32.Hz(), MODE_0);
+            .init(&mut pac.RESETS, PERI_FEQUENCY.Hz(), BAUD_RATE.Hz(), MODE_0);
 
         Interface {
             led_strip: LEDStrip::new(),
