@@ -148,6 +148,7 @@ impl Interface {
         let _ = self.led_pin.set_low();
     }
     pub fn write_spi(&mut self) {
+        self.led_strip.process();
         let _ = self.spi0.write(self.led_strip.dump_0());
         let _ = self.spi1.write(self.led_strip.dump_1());
     }

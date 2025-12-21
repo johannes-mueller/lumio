@@ -3,12 +3,11 @@ use crate::led::{Led, Color, BLACK};
 use crate::random::Random;
 
 const HALF: usize = NUM_LED / 2;
-const TAIL: usize = HALF / 11;
-const DATA_SIZE: usize = HALF*4+4+TAIL;
+const DATA_SIZE: usize = NUM_LED*4+8;
+const HALF_BYTES: usize = DATA_SIZE / 2;
 
 pub struct LEDStrip {
-    bytes_0: [u8; DATA_SIZE],
-    bytes_1: [u8; DATA_SIZE],
+    bytes: [u8; DATA_SIZE],
     leds: [Led; NUM_LED],
     random: Random
 }
@@ -16,14 +15,9 @@ pub struct LEDStrip {
 
 impl LEDStrip {
     pub fn new() -> LEDStrip {
-        let mut bytes_0: [u8; DATA_SIZE] = [0x00u8; DATA_SIZE];
-        let mut bytes_1: [u8; DATA_SIZE] = [0x00u8; DATA_SIZE];
-        for i in DATA_SIZE-TAIL..DATA_SIZE {
-            bytes_0[i] = 0xff;
-            bytes_1[i] = 0xff;
-        }
+        let bytes: [u8; DATA_SIZE] = [0x00u8; DATA_SIZE];
         let leds = [Led::new(); NUM_LED];
-        LEDStrip { bytes_0, bytes_1, leds, random: Random::new(423234098) }
+        LEDStrip { bytes, leds, random: Random::new(423234098) }
     }
 
     pub fn set_led(&mut self, pos: isize, color: Color) {
@@ -44,28 +38,29 @@ impl LEDStrip {
         &mut self.leds[pos]
     }
 
-    pub fn dump_0(&mut self) -> &[u8; DATA_SIZE] {
-        for i in 0..HALF {
-            let led = &mut self.leds[i];
-            self.bytes_0[4+i*4] = 0xff;
-            self.bytes_0[4+i*4+1] = led.b();
-            self.bytes_0[4+i*4+2] = led.g();
-            self.bytes_0[4+i*4+3] = led.r();
-            led.step(&mut self.random);
-        }
-        &self.bytes_0
+    pub fn process(&mut self) {
+        self.process_half_from(0);
+        self.process_half_from(HALF);
     }
 
-    pub fn dump_1(&mut self) -> &[u8; DATA_SIZE] {
+    fn process_half_from(&mut self, start_led: usize) {
+        let start_byte = start_led * 4 + 4;
         for i in 0..HALF {
-            let led = &mut self.leds[i+HALF];
-            self.bytes_1[4+i*4] = 0xff;
-            self.bytes_1[4+i*4+1] = led.b();
-            self.bytes_1[4+i*4+2] = led.g();
-            self.bytes_1[4+i*4+3] = led.r();
+            let led = &mut self.leds[i+start_led];
+            self.bytes[start_byte+i*4] = 0xff;
+            self.bytes[start_byte+i*4+1] = led.b();
+            self.bytes[start_byte+i*4+2] = led.g();
+            self.bytes[start_byte+i*4+3] = led.r();
             led.step(&mut self.random);
         }
-        &self.bytes_1
+    }
+
+    pub fn dump_0(&mut self) -> &[u8] {
+        &self.bytes[..HALF_BYTES]
+    }
+
+    pub fn dump_1(&mut self) -> &[u8] {
+        &self.bytes[HALF_BYTES..]
     }
 
     pub fn black(&mut self) {
