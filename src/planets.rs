@@ -111,9 +111,8 @@ impl PlanetShow {
 
         interface.led_strip().black();
 
-        make_sun_flicker(interface);
-
         loop {
+            make_sun_flicker(interface);
             for n in 0..STRIP_NUM {
                 make_sun_corona_on_strip(n, interface);
                 make_rest_of_sky_black(n, interface);
