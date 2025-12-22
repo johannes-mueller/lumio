@@ -5,7 +5,6 @@ use rp_pico::hal::{
 };
 
 use crate::conf::LONG_PRESS_TIME;
-use crate::interface::Interface;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ButtonState {
@@ -30,24 +29,24 @@ impl<P: PinId> Button<P> {
         }
     }
 
-    pub fn state(&mut self) -> ButtonState {
-        self.state = self.determine_state();
+    pub fn state(&mut self, current_time: Instant) -> ButtonState {
+        self.state = self.determine_state(current_time);
         self.state
     }
 
-    fn determine_state(&mut self) -> ButtonState {
+    fn determine_state(&mut self, current_time: Instant) -> ButtonState {
         let (press_time, state) = if self.pin.is_low().unwrap() {
             self.press_time.map_or_else(
                 || (
                     if self.state == ButtonState::Up {
-                        Some(Interface::get_time())
+                        Some(current_time)
                     } else {
                         self.press_time
                     },
                     ButtonState::Down
                 ),
                 |past| {
-                    if Interface::get_time() - past > LONG_PRESS_TIME && self.state != ButtonState::LongPressed {
+                    if current_time - past > LONG_PRESS_TIME && self.state != ButtonState::LongPressed {
                         (None, ButtonState::LongPressed)
                     } else {
                         (self.press_time, ButtonState::Down)

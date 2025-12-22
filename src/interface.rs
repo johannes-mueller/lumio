@@ -45,18 +45,6 @@ type Spi1Pinout = (MOSI1, SCLK1);
 const PERI_FEQUENCY: u32 = 450_000_000u32;
 const BAUD_RATE:  u32 = 8_000_000u32;
 
-pub struct Peripherals {
-    timer: Option<Timer>,
-}
-impl Peripherals {
-    pub fn get_time(&mut self) -> Instant {
-        self.timer.map_or(Instant::from_ticks(0), |t| t.get_counter())
-    }
-}
-
-pub static mut PERIPHERALS: Peripherals = Peripherals {
-    timer: None
-};
 
 pub struct Interface {
     led_strip: LEDStrip,
@@ -66,14 +54,16 @@ pub struct Interface {
     random: Random,
     spi0: Spi<Enabled, pac::SPI0, Spi0Pinout, 8>,
     spi1: Spi<Enabled, pac::SPI1, Spi1Pinout, 8>,
-    delay: cortex_m::delay::Delay
+    delay: cortex_m::delay::Delay,
+    timer: Timer
 }
 
 impl Interface {
 
-    pub fn get_time() -> Instant {
-        unsafe { PERIPHERALS.get_time() }
+    pub fn get_time(&self) -> Instant {
+        self.timer.get_counter()
     }
+
     pub fn new() -> Interface {
 
         let mut pac = pac::Peripherals::take().unwrap();
@@ -102,9 +92,6 @@ impl Interface {
             &mut pac.RESETS,
         );
 
-        unsafe {
-            PERIPHERALS.timer = Some(Timer::new(pac.TIMER, &mut pac.RESETS, &clocks));
-        };
         let button_1 = Button::new(pins.gpio21.into_pull_up_input());
         let button_2 = Button::new(pins.gpio20.into_pull_up_input());
         let led_1_pin = pins.gpio10.into_push_pull_output();
@@ -128,21 +115,24 @@ impl Interface {
         let spi1 = Spi::<_, _, _, 8>::new(spi_device, spi_pin_layout)
             .init(&mut pac.RESETS, PERI_FEQUENCY.Hz(), BAUD_RATE.Hz(), MODE_0);
 
+        let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
+
         Interface {
             led_strip: LEDStrip::new(),
-            showtimer: ShowTimer::new(button_1, led_1_pin),
+            showtimer: ShowTimer::new(button_1, led_1_pin, timer.get_counter()),
             button: button_2,
             led_pin: led_2_pin,
             random: Random::new(423434859),
             spi0, spi1,
-            delay: cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz())
+            delay: cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz()),
+            timer
         }
     }
 
     pub fn led_strip(&mut self) -> &mut LEDStrip { &mut self.led_strip }
     pub fn random(&mut self) -> &mut Random { &mut self.random }
-    pub fn do_next(&mut self) -> bool { self.showtimer.do_next() }
-    pub fn button_state(&mut self) -> ButtonState { self.button.state() }
+    pub fn do_next(&mut self) -> bool { self.showtimer.do_next(self.get_time()) }
+    pub fn button_state(&mut self) -> ButtonState { self.button.state(self.get_time()) }
     pub fn led_on(&mut self) {
         let _ = self.led_pin.set_high();
     }
