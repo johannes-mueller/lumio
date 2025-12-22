@@ -55,7 +55,6 @@ impl SineShow {
     }
 
     pub fn show(&mut self, interface: &mut Interface) {
-        self.sine = Sine::new(30, 502 , 28);
         let mut hue = 0.0f32;
         let hue_step = STRIP_NUM as f32 / 360.0;
         loop {
