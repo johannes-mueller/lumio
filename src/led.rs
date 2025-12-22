@@ -13,6 +13,7 @@ pub struct Color {
 
 #[allow(dead_code)]
 pub const WHITE: Color = Color { r: 255, g: 255, b: 255 };
+pub const DARK_WHITE: Color = Color { r: 64, g: 64, b: 64 };
 #[allow(dead_code)]
 pub const RED: Color = Color { r: 255, g: 0, b : 0};
 #[allow(dead_code)]

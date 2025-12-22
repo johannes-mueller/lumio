@@ -27,6 +27,7 @@ mod sparks;
 mod particle_crash;
 mod sine;
 mod planets;
+mod snow;
 
 use interface::Interface;
 
@@ -39,6 +40,7 @@ use sparks::{FireWorks, SparkFall, SnowSparks};
 use particle_crash::ParticleCrash;
 use sine::{SeaWave, SineShow};
 use planets::PlanetShow;
+use snow::snow;
 
 #[entry]
 fn main() -> ! {
@@ -67,6 +69,7 @@ fn main() -> ! {
         sine_show.show(&mut interface);
         fire_green.show(&mut interface);
         hue_spiral.show_lift(&mut interface);
+        snow(&mut interface);
         sea_wave_chaos.show(&mut interface);
         fireworks.show(&mut interface);
         hue_spiral.show_swirl(&mut interface);
