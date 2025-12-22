@@ -1,9 +1,7 @@
 
 use crate::{conf::{STRIP_LENGTH, STRIP_NUM}, interface::Interface, led::DARK_WHITE};
 
-const MAX_ACTIVE_SNOW_FLAKES: usize = 720;
-const NUM_SNOW_FLAKES: usize = 180;
-const SNOW_START_PROP: u32 = 4;
+const SNOW_START_PROB: u32 = 4;
 const CHANGE_CONDITION: u32 = 5;
 const FALL_SPEED: isize = 12;
 
@@ -58,22 +56,17 @@ impl SnowFlake {
     }
 }
 
-pub fn snow(interface: &mut Interface) {
+pub fn snow<const NUM_SNOW_FLAKES: usize>(interface: &mut Interface) {
     let mut flakes: [SnowFlake; NUM_SNOW_FLAKES] = core::array::from_fn(|i| i+1).map(|_i| SnowFlake::new());
 
-    let mut active_snow_flakes = 0usize;
     let mut coverage: [usize; STRIP_NUM] = [0; STRIP_NUM];
 
     loop {
         interface.led_strip().black();
 
         for flake in flakes.iter_mut() {
-            if active_snow_flakes > MAX_ACTIVE_SNOW_FLAKES {
-                continue;
-            }
-            if !flake.is_active() && interface.random().value32(2048) < SNOW_START_PROP {
+            if !flake.is_active() && interface.random().value32(2048) < SNOW_START_PROB {
                 flake.reset(interface);
-                active_snow_flakes += 1;
                 if coverage[flake.strip()] > 0 {
                     coverage[flake.strip()] -= 1;
                 }
@@ -88,7 +81,28 @@ pub fn snow(interface: &mut Interface) {
             interface.led_strip().set_led(flake.pos(), DARK_WHITE);
 
             for strip in 0..STRIP_NUM {
+                let left_neighbor = (strip as isize - 1) as usize % STRIP_NUM;
+                let right_neighbor = (strip + 1) % STRIP_NUM;
+                let cov_left = coverage[left_neighbor];
+                let cov_right = coverage[right_neighbor];
+
                 let mut local_coverage = coverage[strip];
+
+                let diff_left = local_coverage as isize - cov_left as isize;
+                let diff_right = local_coverage as isize - cov_right as isize;
+
+                if diff_left > 3 {
+                    coverage[left_neighbor] += 1;
+                    local_coverage -= 1;
+                }
+
+                if diff_right > 3 {
+                    coverage[right_neighbor] += 1;
+                    local_coverage -= 1;
+                }
+
+                coverage[strip] = local_coverage;
+
                 if local_coverage > 3 {
                     local_coverage = 3 + (local_coverage-3) / 5;
                 }
