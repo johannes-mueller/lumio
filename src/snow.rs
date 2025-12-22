@@ -56,6 +56,7 @@ impl SnowFlake {
     }
 }
 
+
 pub fn snow<const NUM_SNOW_FLAKES: usize>(interface: &mut Interface) {
     let mut flakes: [SnowFlake; NUM_SNOW_FLAKES] = core::array::from_fn(|i| i+1).map(|_i| SnowFlake::new());
 
@@ -71,46 +72,11 @@ pub fn snow<const NUM_SNOW_FLAKES: usize>(interface: &mut Interface) {
                     coverage[flake.strip()] -= 1;
                 }
             }
-            if !flake.is_active() {
-                continue;
+            if flake.is_active() {
+                process_flake(interface, &mut coverage, flake);
             }
-            flake.process(interface);
-            if !flake.is_active() {
-                coverage[flake.strip()] += 1;
-            }
-            interface.led_strip().set_led(flake.pos(), DARK_WHITE);
 
-            for strip in 0..STRIP_NUM {
-                let left_neighbor = (strip as isize - 1) as usize % STRIP_NUM;
-                let right_neighbor = (strip + 1) % STRIP_NUM;
-                let cov_left = coverage[left_neighbor];
-                let cov_right = coverage[right_neighbor];
-
-                let mut local_coverage = coverage[strip];
-
-                let diff_left = local_coverage as isize - cov_left as isize;
-                let diff_right = local_coverage as isize - cov_right as isize;
-
-                if diff_left > 3 {
-                    coverage[left_neighbor] += 1;
-                    local_coverage -= 1;
-                }
-
-                if diff_right > 3 {
-                    coverage[right_neighbor] += 1;
-                    local_coverage -= 1;
-                }
-
-                coverage[strip] = local_coverage;
-
-                if local_coverage > 3 {
-                    local_coverage = 3 + (local_coverage-3) / 5;
-                }
-                for y in 0..local_coverage {
-                    let pos = (strip * STRIP_LENGTH + y) as isize;
-                    interface.led_strip().set_led(pos, DARK_WHITE);
-                }
-            }
+            handle_coverage(interface, &mut coverage);
         }
 
         interface.write_spi();
@@ -121,4 +87,51 @@ pub fn snow<const NUM_SNOW_FLAKES: usize>(interface: &mut Interface) {
             break;
         }
     }
+}
+
+fn handle_coverage(interface: &mut Interface, coverage: &mut [usize; STRIP_NUM]) {
+    for strip in 0..STRIP_NUM {
+        average_coverage(strip, coverage);
+        let mut local_coverage = coverage[strip];
+
+        if local_coverage > 3 {
+            local_coverage = 3 + (local_coverage-3) / 5;
+        }
+        for y in 0..local_coverage {
+            let pos = (strip * STRIP_LENGTH + y) as isize;
+            interface.led_strip().set_led(pos, DARK_WHITE);
+        }
+    }
+}
+
+fn process_flake(interface: &mut Interface, coverage: &mut [usize; STRIP_NUM], flake: &mut SnowFlake) {
+    flake.process(interface);
+    if !flake.is_active() {
+        coverage[flake.strip()] += 1;
+    }
+    interface.led_strip().set_led(flake.pos(), DARK_WHITE);
+}
+
+fn average_coverage(strip: usize, coverage: &mut [usize; STRIP_NUM]) {
+    let left_neighbor = (strip as isize - 1) as usize % STRIP_NUM;
+    let right_neighbor = (strip + 1) % STRIP_NUM;
+    let cov_left = coverage[left_neighbor];
+    let cov_right = coverage[right_neighbor];
+
+    let mut averaged_coverage = coverage[strip];
+
+    let diff_left = averaged_coverage as isize - cov_left as isize;
+    let diff_right = averaged_coverage as isize - cov_right as isize;
+
+    if diff_left > 3 {
+        coverage[left_neighbor] += 1;
+        averaged_coverage -= 1;
+    }
+
+    if diff_right > 3 {
+        coverage[right_neighbor] += 1;
+        averaged_coverage -= 1;
+    }
+
+    coverage[strip] = averaged_coverage;
 }
