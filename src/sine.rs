@@ -128,17 +128,23 @@ enum Elastic {
 }
 
 pub struct SeaWave {
+    hue: f32,
+    hue_spark: f32,
     elastic: Elastic,
     ampl: isize
 }
 
 impl SeaWave {
-    pub fn new(elastic: Option<isize>, ampl: isize) -> SeaWave {
+    pub fn new(
+        hue: f32,
+        hue_spark: f32,
+        elastic: Option<isize>, ampl: isize
+    ) -> SeaWave {
         let elastic = match elastic {
             Some(v) => Elastic::Constant(v),
             None => Elastic::Varying(Sine::new(1100, 12, 200))
         };
-        SeaWave { elastic, ampl }
+        SeaWave { hue, hue_spark, elastic, ampl }
     }
 
     fn elastic(&mut self) -> isize {
@@ -161,9 +167,9 @@ impl SeaWave {
                 let pos = sine.process();
                 for p in 0..pos {
                     let hue = if interface.random().value8() < 32 {
-                        random_hue_around_given(0.50, interface)
+                        random_hue_around_given(self.hue_spark, interface)
                     } else {
-                        0.63
+                        self.hue
                     };
                     interface.led_strip().set_led(strip_begin + p, Color::from_hsv(hue, 1.0, 0.25));
                 }
