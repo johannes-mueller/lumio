@@ -1,5 +1,4 @@
-
-use crate::{conf::{STRIP_LENGTH, STRIP_NUM}, interface::Interface, led::DARK_WHITE};
+use crate::{button::ButtonState, conf::{STRIP_LENGTH, STRIP_NUM}, interface::Interface, led::{DARK_WHITE, GREEN, RED}};
 
 const SNOW_START_PROB: u32 = 4;
 const CHANGE_CONDITION: u32 = 5;
@@ -29,7 +28,7 @@ impl SnowFlake {
         self.alt > 0
     }
 
-    fn process(&mut self, interface: &mut Interface) {
+    fn process(&mut self, interface: &mut Interface, wind: i32) {
         if !self.is_active() {
             return
         }
@@ -42,6 +41,11 @@ impl SnowFlake {
                 self.strip - 1
             } % STRIP_NUM as isize;
         }
+
+        if interface.random().value8() % 2 == 0 {
+            self.strip += (wind / 32) as isize;
+        }
+        self.strip %= STRIP_NUM as isize;
 
         self.alt -= FALL_SPEED;
     }
@@ -62,8 +66,22 @@ pub fn snow<const NUM_SNOW_FLAKES: usize>(interface: &mut Interface) {
 
     let mut coverage: [usize; STRIP_NUM] = [0; STRIP_NUM];
 
+    let mut wind = 0i32;
+    let mut with_wind = true;
+    let mut wind_count = 1;
+    let _ = interface.led_on();
+
     loop {
         interface.led_strip().black();
+
+        if with_wind {
+            wind_count = (wind_count + 1) % 3;
+            if wind_count == 0 {
+                wind = make_wind(interface, wind);
+            }
+        } else {
+            wind = 0;
+        }
 
         for flake in flakes.iter_mut() {
             if !flake.is_active() && interface.random().value32(2048) < SNOW_START_PROB {
@@ -73,18 +91,52 @@ pub fn snow<const NUM_SNOW_FLAKES: usize>(interface: &mut Interface) {
                 }
             }
             if flake.is_active() {
-                process_flake(interface, &mut coverage, flake);
+                process_flake(interface, &mut coverage, flake,  wind);
             }
 
             handle_coverage(interface, &mut coverage);
         }
 
+        //show_wind(interface, wind);
+
         interface.write_spi();
+
+        if interface.button_state() == ButtonState::LongPressed {
+            with_wind = !with_wind;
+            if with_wind {
+                let _ = interface.led_on();
+            } else {
+                let _ = interface.led_off();
+            }
+        }
+
 
         if interface.do_next() {
             interface.led_strip().black();
             let _ = interface.led_off();
             break;
+        }
+    }
+}
+
+fn make_wind(interface: &mut Interface, wind: i32) -> i32 {
+    if interface.random().value8() > 64 {
+        return wind
+    }
+
+    let wind_change = interface.random().value32(5) as i32 - 2;
+    (wind + wind_change).min(32).max(-32)
+}
+
+fn show_wind(interface: &mut Interface, wind: i32) {
+    if wind < 0 {
+        for i in 0..(-wind as usize) {
+            interface.led_strip().set_led(i as isize, RED);
+        }
+    }
+    if wind > 0 {
+        for i in 0..(wind as usize) {
+            interface.led_strip().set_led(i as isize, GREEN);
         }
     }
 }
@@ -104,8 +156,13 @@ fn handle_coverage(interface: &mut Interface, coverage: &mut [usize; STRIP_NUM])
     }
 }
 
-fn process_flake(interface: &mut Interface, coverage: &mut [usize; STRIP_NUM], flake: &mut SnowFlake) {
-    flake.process(interface);
+fn process_flake(
+    interface: &mut Interface,
+    coverage: &mut [usize; STRIP_NUM],
+    flake: &mut SnowFlake,
+    wind: i32,
+) {
+    flake.process(interface, wind);
     if !flake.is_active() {
         coverage[flake.strip()] += 1;
     }
@@ -113,7 +170,11 @@ fn process_flake(interface: &mut Interface, coverage: &mut [usize; STRIP_NUM], f
 }
 
 fn average_coverage(strip: usize, coverage: &mut [usize; STRIP_NUM]) {
-    let left_neighbor = (strip as isize - 1) as usize % STRIP_NUM;
+    let left_neighbor = if strip == 0 {
+        STRIP_NUM - 1
+    } else {
+        strip - 1
+    };
     let right_neighbor = (strip + 1) % STRIP_NUM;
     let cov_left = coverage[left_neighbor];
     let cov_right = coverage[right_neighbor];
