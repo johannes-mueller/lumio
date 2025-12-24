@@ -14,6 +14,7 @@ use rp_pico::hal::{
     Timer,
     timer::Instant,
     watchdog::Watchdog,
+    usb::UsbBus,
 };
 
 use embedded_hal::{
@@ -21,6 +22,8 @@ use embedded_hal::{
     blocking::spi::Write
 };
 use fugit::RateExtU32;
+use usb_device::{prelude::*, bus::UsbBusAllocator};
+use usbd_serial::SerialPort;
 
 use crate::ledstrip::LEDStrip;
 use crate::showtimer::ShowTimer;
@@ -55,7 +58,9 @@ pub struct Interface {
     spi0: Spi<Enabled, pac::SPI0, Spi0Pinout, 8>,
     spi1: Spi<Enabled, pac::SPI1, Spi1Pinout, 8>,
     delay: cortex_m::delay::Delay,
-    timer: Timer
+    timer: Timer,
+    usb_serial: SerialPort<'static, UsbBus>,
+    usb_dev: UsbDevice<'static, UsbBus>,
 }
 
 impl Interface {
@@ -84,28 +89,6 @@ impl Interface {
         )
             .ok()
             .unwrap();
-
-        // Note: USB bus setup is available via the PLL_USB clock initialized above.
-        // To use USB functionality, you need to create a UsbBusAllocator with 'static lifetime.
-        // The proper way to do this is using cortex_m::singleton! macro:
-        //
-        // use usb_device::prelude::*;
-        // use rp_pico::hal::usb::UsbBus;
-        //
-        // let usb_bus = cortex_m::singleton!(
-        //     : usb_device::bus::UsbBusAllocator<UsbBus> =
-        //         usb_device::bus::UsbBusAllocator::new(UsbBus::new(
-        //             pac.USBCTRL_REGS,
-        //             pac.USBCTRL_DPRAM,
-        //             clocks.usb_clock,
-        //             true,
-        //             &mut pac.RESETS,
-        //         ))
-        // ).unwrap();
-        //
-        // This creates a static allocation with the required 'static lifetime that USB
-        // classes need. Without this pattern, you'll encounter lifetime errors because
-        // USB classes must reference the allocator throughout the program's lifetime.
 
         let pins = Pins::new(
             pac.IO_BANK0,
@@ -138,6 +121,36 @@ impl Interface {
             .init(&mut pac.RESETS, PERI_FEQUENCY.Hz(), BAUD_RATE.Hz(), MODE_0);
 
         let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
+        let system_freq = clocks.system_clock.freq().to_Hz();
+
+        // Take USB peripherals and clocks before they move into singleton
+        let usbctrl_regs = pac.USBCTRL_REGS;
+        let usbctrl_dpram = pac.USBCTRL_DPRAM;
+        let usb_clock = clocks.usb_clock;
+        let resets = &mut pac.RESETS;
+
+        // Set up the USB driver using singleton to create static allocation
+        let usb_bus = cortex_m::singleton!(
+            : UsbBusAllocator<UsbBus> =
+                UsbBusAllocator::new(UsbBus::new(
+                    usbctrl_regs,
+                    usbctrl_dpram,
+                    usb_clock,
+                    true,
+                    resets,
+                ))
+        ).unwrap();
+
+        // Create USB serial port
+        let usb_serial = SerialPort::new(usb_bus);
+
+        // Create USB device
+        let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(0x16c0, 0x27dd))
+            .manufacturer("Lumio")
+            .product("LED Controller")
+            .serial_number("001")
+            .device_class(2) // CDC class
+            .build();
 
         Interface {
             led_strip: LEDStrip::new(),
@@ -146,8 +159,10 @@ impl Interface {
             led_pin: led_2_pin,
             random: Random::new(423434859),
             spi0, spi1,
-            delay: cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz()),
-            timer
+            delay: cortex_m::delay::Delay::new(core.SYST, system_freq),
+            timer,
+            usb_serial,
+            usb_dev,
         }
     }
 
@@ -171,5 +186,16 @@ impl Interface {
         self.delay.delay_ms(delay);
     }
 
+    pub fn poll_usb(&mut self) -> bool {
+        self.usb_dev.poll(&mut [&mut self.usb_serial])
+    }
+
+    pub fn usb_write(&mut self, data: &[u8]) -> Result<usize, usb_device::UsbError> {
+        self.usb_serial.write(data)
+    }
+
+    pub fn usb_read(&mut self, buf: &mut [u8]) -> Result<usize, usb_device::UsbError> {
+        self.usb_serial.read(buf)
+    }
 
 }
