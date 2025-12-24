@@ -20,6 +20,10 @@ rp-pico = "0.8"
 
 fugit = "0.3.7"
 
+# USB support
+usb-device = "0.2.9"
+usbd-serial = "0.1.1"
+
 # but you can use any BSP. Uncomment this to use the pro_micro_rp2040 BSP instead
 # sparkfun-pro-micro-rp2040 = "0.7"
 

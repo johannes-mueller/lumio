@@ -14,6 +14,7 @@ use rp_pico::hal::{
     Timer,
     timer::Instant,
     watchdog::Watchdog,
+    usb::UsbBus,
 };
 
 use embedded_hal::{
@@ -21,6 +22,8 @@ use embedded_hal::{
     blocking::spi::Write
 };
 use fugit::RateExtU32;
+use usb_device::{prelude::*, bus::UsbBusAllocator};
+use usbd_serial::SerialPort;
 
 use crate::ledstrip::LEDStrip;
 use crate::showtimer::ShowTimer;
@@ -45,6 +48,13 @@ type Spi1Pinout = (MOSI1, SCLK1);
 const PERI_FEQUENCY: u32 = 450_000_000u32;
 const BAUD_RATE:  u32 = 8_000_000u32;
 
+// USB device configuration
+const USB_VID: u16 = 0x16c0;
+const USB_PID: u16 = 0x27dd;
+const USB_MANUFACTURER: &str = "Lumio";
+const USB_PRODUCT: &str = "LED Controller";
+const USB_SERIAL: &str = "001";
+
 
 pub struct Interface {
     led_strip: LEDStrip,
@@ -55,7 +65,9 @@ pub struct Interface {
     spi0: Spi<Enabled, pac::SPI0, Spi0Pinout, 8>,
     spi1: Spi<Enabled, pac::SPI1, Spi1Pinout, 8>,
     delay: cortex_m::delay::Delay,
-    timer: Timer
+    timer: Timer,
+    usb_serial: SerialPort<'static, UsbBus>,
+    usb_dev: UsbDevice<'static, UsbBus>,
 }
 
 impl Interface {
@@ -116,6 +128,36 @@ impl Interface {
             .init(&mut pac.RESETS, PERI_FEQUENCY.Hz(), BAUD_RATE.Hz(), MODE_0);
 
         let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
+        let system_freq = clocks.system_clock.freq().to_Hz();
+
+        // Take USB peripherals and clocks before they move into singleton
+        let usbctrl_regs = pac.USBCTRL_REGS;
+        let usbctrl_dpram = pac.USBCTRL_DPRAM;
+        let usb_clock = clocks.usb_clock;
+        let resets = &mut pac.RESETS;
+
+        // Set up the USB driver using singleton to create static allocation
+        let usb_bus = cortex_m::singleton!(
+            : UsbBusAllocator<UsbBus> =
+                UsbBusAllocator::new(UsbBus::new(
+                    usbctrl_regs,
+                    usbctrl_dpram,
+                    usb_clock,
+                    true,
+                    resets,
+                ))
+        ).expect("Failed to allocate USB bus - singleton already exists");
+
+        // Create USB serial port
+        let usb_serial = SerialPort::new(usb_bus);
+
+        // Create USB device
+        let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(USB_VID, USB_PID))
+            .manufacturer(USB_MANUFACTURER)
+            .product(USB_PRODUCT)
+            .serial_number(USB_SERIAL)
+            .device_class(2) // CDC class
+            .build();
 
         Interface {
             led_strip: LEDStrip::new(),
@@ -124,14 +166,19 @@ impl Interface {
             led_pin: led_2_pin,
             random: Random::new(423434859),
             spi0, spi1,
-            delay: cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz()),
-            timer
+            delay: cortex_m::delay::Delay::new(core.SYST, system_freq),
+            timer,
+            usb_serial,
+            usb_dev,
         }
     }
 
     pub fn led_strip(&mut self) -> &mut LEDStrip { &mut self.led_strip }
     pub fn random(&mut self) -> &mut Random { &mut self.random }
-    pub fn do_next(&mut self) -> bool { self.showtimer.do_next(self.get_time()) }
+    pub fn do_next(&mut self) -> bool {
+        self.poll_usb();
+        self.showtimer.do_next(self.get_time())
+    }
     pub fn button_state(&mut self) -> ButtonState { self.button.state(self.get_time()) }
     pub fn led_on(&mut self) {
         let _ = self.led_pin.set_high();
@@ -149,5 +196,16 @@ impl Interface {
         self.delay.delay_ms(delay);
     }
 
+    pub fn poll_usb(&mut self) -> bool {
+        self.usb_dev.poll(&mut [&mut self.usb_serial])
+    }
+
+    pub fn usb_write(&mut self, data: &[u8]) -> Result<usize, usb_device::UsbError> {
+        self.usb_serial.write(data)
+    }
+
+    pub fn usb_read(&mut self, buf: &mut [u8]) -> Result<usize, usb_device::UsbError> {
+        self.usb_serial.read(buf)
+    }
 
 }

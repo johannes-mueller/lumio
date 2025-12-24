@@ -62,11 +62,18 @@ fn main() -> ! {
     let mut sea_wave_order = SeaWave::new(0.99, 0.99, Some(1050), 12);
     //let mut sea_wave_varying = SeaWave::new(None, 12);
 
+    interface.poll_usb();
+
     loop {
 //        sea_wave_varying.show(&mut interface);
+          sine_show.show(&mut interface);
+        interface.usb_write(b"snow\n");
         snow::<90>(&mut interface);
+        interface.usb_write(b"sine\n");
         sine_show.show(&mut interface);
+        interface.usb_write(b"particles\n");
         particle_crash.show_spiral(&mut interface);
+        interface.usb_write(b"planets\n");
         planet_show.show(&mut interface);
         fire_green.show(&mut interface);
         hue_spiral.show_lift(&mut interface);
