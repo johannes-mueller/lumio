@@ -85,6 +85,28 @@ impl Interface {
             .ok()
             .unwrap();
 
+        // Note: USB bus setup is available via the PLL_USB clock initialized above.
+        // To use USB functionality, you need to create a UsbBusAllocator with 'static lifetime.
+        // The proper way to do this is using cortex_m::singleton! macro:
+        //
+        // use usb_device::prelude::*;
+        // use rp_pico::hal::usb::UsbBus;
+        //
+        // let usb_bus = cortex_m::singleton!(
+        //     : usb_device::bus::UsbBusAllocator<UsbBus> =
+        //         usb_device::bus::UsbBusAllocator::new(UsbBus::new(
+        //             pac.USBCTRL_REGS,
+        //             pac.USBCTRL_DPRAM,
+        //             clocks.usb_clock,
+        //             true,
+        //             &mut pac.RESETS,
+        //         ))
+        // ).unwrap();
+        //
+        // This creates a static allocation with the required 'static lifetime that USB
+        // classes need. Without this pattern, you'll encounter lifetime errors because
+        // USB classes must reference the allocator throughout the program's lifetime.
+
         let pins = Pins::new(
             pac.IO_BANK0,
             pac.PADS_BANK0,
