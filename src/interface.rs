@@ -48,6 +48,13 @@ type Spi1Pinout = (MOSI1, SCLK1);
 const PERI_FEQUENCY: u32 = 450_000_000u32;
 const BAUD_RATE:  u32 = 8_000_000u32;
 
+// USB device configuration
+const USB_VID: u16 = 0x16c0;
+const USB_PID: u16 = 0x27dd;
+const USB_MANUFACTURER: &str = "Lumio";
+const USB_PRODUCT: &str = "LED Controller";
+const USB_SERIAL: &str = "001";
+
 
 pub struct Interface {
     led_strip: LEDStrip,
@@ -139,16 +146,16 @@ impl Interface {
                     true,
                     resets,
                 ))
-        ).unwrap();
+        ).expect("Failed to allocate USB bus - singleton already exists");
 
         // Create USB serial port
         let usb_serial = SerialPort::new(usb_bus);
 
         // Create USB device
-        let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(0x16c0, 0x27dd))
-            .manufacturer("Lumio")
-            .product("LED Controller")
-            .serial_number("001")
+        let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(USB_VID, USB_PID))
+            .manufacturer(USB_MANUFACTURER)
+            .product(USB_PRODUCT)
+            .serial_number(USB_SERIAL)
             .device_class(2) // CDC class
             .build();
 
