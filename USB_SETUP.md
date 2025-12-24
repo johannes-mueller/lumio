@@ -53,6 +53,9 @@ let usb_bus = cortex_m::singleton!(
 let serial = SerialPort::new(&usb_bus);
 
 // Create the USB device
+// NOTE: The VID/PID 0x16c0:0x27dd are test values. For production devices,
+// you must obtain a proper Vendor ID and Product ID from USB-IF or use
+// your company's allocated VID with a unique PID.
 let usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x16c0, 0x27dd))
     .manufacturer("Your Company")
     .product("Lumio LED Controller")
@@ -106,9 +109,9 @@ unsafe {
 
 This approach is less preferred because it requires `unsafe` code and manual lifetime management.
 
-### Using `OnceCell` or `lazy_static` (Not Available in `no_std`)
+### Using `OnceCell` or `lazy_static` (Limited `no_std` Support)
 
-These options aren't available in the bare-metal `no_std` environment without an allocator.
+While standard library versions of these aren't available in bare-metal `no_std` environments, some alternatives like the `once_cell` crate's `race` feature can work in `no_std`. However, `cortex_m::singleton!` remains the recommended approach for embedded Rust as it's specifically designed for this use case and has zero runtime overhead.
 
 ## Common Errors
 
