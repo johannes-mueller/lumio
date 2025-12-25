@@ -5,6 +5,11 @@ use crate::random::Random;
 const HALF: usize = NUM_LED / 2;
 const DATA_SIZE: usize = NUM_LED*4+8;
 const HALF_BYTES: usize = DATA_SIZE / 2;
+const LED_DATA_SIZE: usize = 4;
+const SPI_OFFSET: usize = 4;
+const RED_OFFSET: usize = 3;
+const GREEN_OFFSET: usize = 2;
+const BLUE_OFFSET: usize = 1;
 
 pub struct LEDStrip {
     bytes: [u8; DATA_SIZE],
@@ -44,13 +49,14 @@ impl LEDStrip {
     }
 
     fn process_half_from(&mut self, start_led: usize) {
-        let start_byte = start_led * 4 + 4;
+        let start_byte = start_led * LED_DATA_SIZE + SPI_OFFSET;
         for i in 0..HALF {
             let led = &mut self.leds[i+start_led];
-            self.bytes[start_byte+i*4] = 0xff;
-            self.bytes[start_byte+i*4+1] = led.b();
-            self.bytes[start_byte+i*4+2] = led.g();
-            self.bytes[start_byte+i*4+3] = led.r();
+            let offset = start_byte + i * LED_DATA_SIZE;
+            self.bytes[offset] = 0xff;
+            self.bytes[offset+BLUE_OFFSET] = led.b();
+            self.bytes[offset+GREEN_OFFSET] = led.g();
+            self.bytes[offset+RED_OFFSET] = led.r();
             led.step(&mut self.random);
         }
     }
