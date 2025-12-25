@@ -66,7 +66,6 @@ fn main() -> ! {
 
     loop {
 //        sea_wave_varying.show(&mut interface);
-          sine_show.show(&mut interface);
         interface.usb_write(b"snow\n");
         snow::<90>(&mut interface);
         interface.usb_write(b"sine\n");

@@ -148,20 +148,17 @@ impl Led {
             return color
         }
 
-        let mut flickered = color;
-
-        if self.current_flicker > 127 {
-            let flicker = scale8(self.current_flicker - 127, self.flicker);
-            flickered.r = qadd8(flickered.r,  flicker);
-            flickered.g = qadd8(flickered.g,  flicker);
-            flickered.b = qadd8(flickered.b,  flicker);
+        let flicker = if self.current_flicker > 127 {
+            scale8(self.current_flicker - 127, self.flicker)
         } else {
-            let flicker = scale8(127 - self.current_flicker, self.flicker);
-            flickered.r = qsub8(flickered.r,  flicker);
-            flickered.g = qsub8(flickered.g,  flicker);
-            flickered.b = qsub8(flickered.b,  flicker);
+            scale8(127 - self.current_flicker, self.flicker)
+        };
+
+        Color {
+            r: qadd8(color.r, flicker),
+            g: qadd8(color.g, flicker),
+            b: qadd8(color.b, flicker),
         }
-        flickered
     }
 }
 
