@@ -51,8 +51,8 @@ const BAUD_RATE:  u32 = 8_000_000u32;
 // USB device configuration
 const USB_VID: u16 = 0x16c0;
 const USB_PID: u16 = 0x27dd;
-const USB_MANUFACTURER: &str = "Lumio";
-const USB_PRODUCT: &str = "LED Controller";
+const USB_MANUFACTURER: &str = "c3eo";
+const USB_PRODUCT: &str = "Lumio";
 const USB_SERIAL: &str = "001";
 
 
