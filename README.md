@@ -1,10 +1,11 @@
 # A LED strip flower for the RP-Pico 2040
 
-This is a bad weather afternoon hack during that I did in November 2023 to
-decorate [our Esperanto assembly](https://events.ccc.de/congress/2023/hub/en/assembly/esperanto/)
-at the [37c3](https://events.ccc.de/congress/2023/infos/startpage.html).  Since
-many that came across asked for it, I've published the source code. It's now by no
-means documented.  I'm not sure if I am going to change that.  :)
+This started of as a bad weather afternoon hack during that I did in November
+2023 to decorate [our Esperanto
+assembly](https://events.ccc.de/congress/2023/hub/en/assembly/esperanto/) at
+the [37c3](https://events.ccc.de/congress/2023/infos/startpage.html).  Since
+many that came across asked for it, I've published the source code. It's now by
+no means documented.  I'm not sure if I am going to change that.  :)
 
 So just some basic stuff …
 
