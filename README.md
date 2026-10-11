@@ -9,13 +9,13 @@ means documented.  I'm not sure if I am going to change that.  :)
 So just some basic stuff …
 
 
-## Idea
+## What it is
 
-The idea was actually to make a 24 strip circle, not a half circle of 12
-strips.  The LED-strip are glued to a L-profile stick each.  These sticks are
-then mounted with one end to a wooden disk and adjusted in a way that they
-point upwards to form a funnel.  In this form the installation can show
-interesting light effects.
+We have 24 LED strips of 60 RGB LEDs each. Each strip glued to a L-profile
+stick. The sticks are fixed with one end at the edge of a round disk the other
+end points away from the disk usually like 60° upwards. So if you look at the
+installation it looks like a funnel of LED strips. On these LED strips we can
+show interesting light effects.
 
 
 ## Making of
