@@ -19,8 +19,15 @@ rustflags = [
   "-C", "no-vectorize-loops",
 ]
 
-[build]
-target = "thumbv6m-none-eabi"
+# NOTE: `[build] target` is intentionally *not* set. It would force every
+# workspace member (including the wasm simulator) onto thumbv6m. Build the
+# firmware with the alias below, or pass `--target thumbv6m-none-eabi`.
+# The rustflags/runner above are target-gated, so they only apply to arm builds.
+
+[alias]
+firmware = "build -p lumio-firmware --target thumbv6m-none-eabi"
+firmware-release = "build -p lumio-firmware --target thumbv6m-none-eabi --release"
+flash = "run -p lumio-firmware --target thumbv6m-none-eabi"
 
 [env]
 DEFMT_LOG = "debug"

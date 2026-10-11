@@ -6,7 +6,7 @@
             "preLaunchTask": "rust: cargo build",
             "type": "probe-rs-debug",
             "request": "launch",
-            "name": "rp2040-project",
+            "name": "lumio-firmware",
             "cwd": "${workspaceFolder}",
             "chip": "rp2040",
             // RP2040 doesn't support connectUnderReset
@@ -24,7 +24,7 @@
             "coreConfigs": [
                 {
                     "coreIndex": 0,
-                    "programBinary": "target/thumbv6m-none-eabi/debug/rp2040-project-template",
+                    "programBinary": "target/thumbv6m-none-eabi/debug/lumio-firmware",
                     "chip": "RP2040",
                     // Uncomment this if you've downloaded the SVD from
                     // https://github.com/raspberrypi/pico-sdk/raw/1.3.1/src/rp2040/hardware_regs/rp2040.svd

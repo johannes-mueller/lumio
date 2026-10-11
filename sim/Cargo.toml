@@ -1,0 +1,13 @@
+[package]
+name = "lumio-sim"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+description = "WebAssembly simulator for the lumio LED flower"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+lumio-core = { path = "../core" }
+wasm-bindgen = "0.2"

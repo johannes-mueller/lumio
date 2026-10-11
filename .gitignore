@@ -4,6 +4,10 @@
 Cargo.lock
 target/
 
+# Trunk / simulator build output
+dist/
+.trunk/
+
 # editor files
 .vscode/*
 !.vscode/*.md

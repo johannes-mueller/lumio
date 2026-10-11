@@ -3,17 +3,17 @@ use crate::{
     interface::Interface,
     led::WHITE,
     ledstrip::LEDStrip,
-    sparks::Explosions
+    player::{Show, StepResult},
+    sparks::Explosions,
 };
 
 const ISTRIP_LENGTH: isize = STRIP_LENGTH as isize;
 
-
+#[derive(Clone, Copy)]
 enum Manor {
     Randomly,
-    Spiral
+    Spiral,
 }
-
 
 #[derive(Clone, Copy)]
 pub struct BigParticle {
@@ -29,12 +29,17 @@ impl BigParticle {
         }
     }
 
-    fn is_active(&self) -> bool { self.current_position >= 0 }
+    fn is_active(&self) -> bool {
+        self.current_position >= 0
+    }
 
-    fn deactivate(&mut self) { self.current_position = -1 }
+    fn deactivate(&mut self) {
+        self.current_position = -1
+    }
 
-    fn activate(&mut self) { self.current_position = 0 }
-
+    fn activate(&mut self) {
+        self.current_position = 0
+    }
 
     fn process(&mut self, led_strip: &mut LEDStrip) {
         if !self.is_active() {
@@ -52,7 +57,6 @@ impl BigParticle {
     }
 }
 
-
 #[derive(Clone, Copy)]
 pub struct SmallParticle {
     strip: isize,
@@ -67,12 +71,17 @@ impl SmallParticle {
         }
     }
 
-    fn is_active(&self) -> bool { self.current_position >= 0 }
+    fn is_active(&self) -> bool {
+        self.current_position >= 0
+    }
 
-    fn deactivate(&mut self) { self.current_position = -1 }
+    fn deactivate(&mut self) {
+        self.current_position = -1
+    }
 
-    fn activate(&mut self) { self.current_position = 1 }
-
+    fn activate(&mut self) {
+        self.current_position = 1
+    }
 
     fn process(&mut self, led_strip: &mut LEDStrip) {
         if !self.is_active() {
@@ -94,47 +103,62 @@ pub struct ParticleCrash {
     big_particles: [BigParticle; STRIP_NUM],
     small_particles: [SmallParticle; STRIP_NUM],
     explosions: Explosions,
-    step: usize
+    manor: Manor,
+    center_hue: f32,
+    step: usize,
 }
 
 impl ParticleCrash {
-    pub fn new() -> ParticleCrash {
+    fn with_manor(manor: Manor) -> ParticleCrash {
         ParticleCrash {
             big_particles: core::array::from_fn(|i| i).map(|strip| BigParticle::new(strip)),
             small_particles: core::array::from_fn(|i| i).map(|strip| SmallParticle::new(strip)),
             explosions: Explosions::new(),
-            step: 0
+            manor,
+            center_hue: 0.0,
+            step: 0,
         }
     }
 
-    fn handle_colision(&mut self, strip: usize, explosion_hue: f32, interface: &mut Interface) {
+    pub fn new_random() -> ParticleCrash {
+        ParticleCrash::with_manor(Manor::Randomly)
+    }
+
+    pub fn new_spiral() -> ParticleCrash {
+        ParticleCrash::with_manor(Manor::Spiral)
+    }
+
+    fn handle_colision(&mut self, strip: usize, explosion_hue: f32, interface: &mut Interface<'_>) {
         let bp = &mut self.big_particles[strip];
         let sp = &mut self.small_particles[strip];
 
         if !bp.is_active() {
-            return
+            return;
         }
 
         if bp.current_position > ISTRIP_LENGTH - sp.current_position {
-            self.explosions.explode(
-                strip, bp.current_position as usize, explosion_hue, interface
-            );
+            self.explosions
+                .explode(strip, bp.current_position as usize, explosion_hue, interface);
             bp.deactivate();
             sp.deactivate();
         }
     }
 
-    fn randomly_activate_particles_on_strip(&mut self, strip: usize, interface: &mut Interface) {
+    fn randomly_activate_particles_on_strip(
+        &mut self,
+        strip: usize,
+        interface: &mut Interface<'_>,
+    ) {
         let no_crash_on_strip = self.explosions.no_explosion_on_strip(strip);
 
         let bp = &mut self.big_particles[strip];
         let sp = &mut self.small_particles[strip];
 
-        if !bp.is_active() && no_crash_on_strip  && interface.random().value() < SPARK_PROB {
+        if !bp.is_active() && no_crash_on_strip && interface.random().value() < SPARK_PROB {
             bp.activate()
         }
 
-        if !sp.is_active() && no_crash_on_strip  && interface.random().value() < SPARK_PROB {
+        if !sp.is_active() && no_crash_on_strip && interface.random().value() < SPARK_PROB {
             sp.activate()
         }
     }
@@ -151,70 +175,57 @@ impl ParticleCrash {
             bp.activate();
         }
     }
+}
 
-    pub fn show(&mut self, interface: &mut Interface) {
-        self.do_show(interface, Manor::Randomly);
-    }
-
-    pub fn show_spiral(&mut self, interface: &mut Interface) {
-        self.step = 0;
-        self.do_show(interface, Manor::Spiral);
-    }
-
-    fn do_show(&mut self, interface: &mut Interface, manor: Manor) {
-        let mut center_hue = 0.0;
-
+impl Show for ParticleCrash {
+    fn reset(&mut self, _iface: &mut Interface<'_>) {
         self.explosions.reset();
         for bp in self.big_particles.iter_mut() {
             bp.deactivate();
         }
-
         for sp in self.small_particles.iter_mut() {
             sp.deactivate();
         }
-        loop {
-            interface.led_strip().black();
+        self.center_hue = 0.0;
+        self.step = 0;
+    }
 
-            self.explosions.process(interface);
+    fn step(&mut self, interface: &mut Interface<'_>) -> StepResult {
+        interface.led_strip().black();
 
-            if !self.big_particles.iter().any(|p| p.is_active()) {
-                //self.step = 0;
-                center_hue = center_hue + 1.0 / 7.0;
-            }
+        self.explosions.process(interface);
 
-            for strip in 0..STRIP_NUM {
-                self.big_particles[strip].process(&mut interface.led_strip());
-                self.small_particles[strip].process(&mut interface.led_strip());
+        if !self.big_particles.iter().any(|p| p.is_active()) {
+            self.center_hue += 1.0 / 7.0;
+        }
 
-                let hue = match manor {
-                    Manor::Randomly => interface.random().value(),
-                    Manor::Spiral => random_hue_around_given(center_hue, interface)
-                };
-                self.handle_colision(strip, hue, interface);
+        for strip in 0..STRIP_NUM {
+            self.big_particles[strip].process(&mut interface.led_strip());
+            self.small_particles[strip].process(&mut interface.led_strip());
 
-                match manor {
-                    Manor::Randomly => self.randomly_activate_particles_on_strip(strip, interface),
-                    Manor::Spiral => self.activate_for_spiral(strip)
-                }
+            let hue = match self.manor {
+                Manor::Randomly => interface.random().value(),
+                Manor::Spiral => random_hue_around_given(self.center_hue, interface),
             };
+            self.handle_colision(strip, hue, interface);
 
-            self.step = (self.step+1) % (STRIP_NUM * 2);
-
-            if self.step == 0 {
-                center_hue = center_hue + 1.0 / 7.0;
-            }
-
-            interface.write_spi();
-            if interface.do_next() {
-                interface.led_strip().black();
-                let _ = interface.led_off();
-                break;
+            match self.manor {
+                Manor::Randomly => self.randomly_activate_particles_on_strip(strip, interface),
+                Manor::Spiral => self.activate_for_spiral(strip),
             }
         }
+
+        self.step = (self.step + 1) % (STRIP_NUM * 2);
+
+        if self.step == 0 {
+            self.center_hue += 1.0 / 7.0;
+        }
+
+        interface.write_spi();
+        StepResult::Running
     }
 }
 
-
-fn random_hue_around_given(center_hue: f32, interface: &mut Interface) -> f32 {
+fn random_hue_around_given(center_hue: f32, interface: &mut Interface<'_>) -> f32 {
     (interface.random().value() / 6.0 + center_hue) % 1.0
 }

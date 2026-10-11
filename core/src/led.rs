@@ -1,4 +1,3 @@
-use rp_pico::hal::rom_data::float_funcs::float_to_uint;
 use libm::fabsf;
 
 use crate::math8::{scale8,qadd8,qsub8};
@@ -49,9 +48,9 @@ impl Color {
 
         let m = v - c;
         Color {
-            r: float_to_uint((r+m) * 255.0) as u8,
-            g: float_to_uint((g+m) * 255.0) as u8,
-            b: float_to_uint((b+m) * 255.0) as u8,
+            r: ((r + m) * 255.0) as u8,
+            g: ((g + m) * 255.0) as u8,
+            b: ((b + m) * 255.0) as u8,
         }
     }
 

@@ -49,4 +49,70 @@ The whole thing is written in Rust. Basically, because I wanted to do something
 with Embedded Rust.
 
 
+## Repository layout
+
+The project is a Cargo workspace:
+
+| Crate            | Directory  | What it is                                                        |
+| ---------------- | ---------- | ----------------------------------------------------------------- |
+| `lumio-core`     | `core/`    | All show logic, LED model and player. `#![no_std]`, no hardware.  |
+| `lumio-firmware` | `firmware/`| The RP2040 binary: hardware `Platform` + the show player.         |
+| `lumio-sim`      | `sim/`     | WebAssembly simulator that renders the flower in a browser.       |
+
+`lumio-core` talks to the outside world only through the `Platform` trait, so
+the exact same show code runs on the microcontroller and in the browser.
+
+Build the firmware (from the repository root):
+
+```sh
+cargo firmware           # debug build for thumbv6m-none-eabi
+cargo firmware-release   # release build
+```
+
+These are aliases defined in `.cargo/config.toml`; they expand to
+`cargo build -p lumio-firmware --target thumbv6m-none-eabi`. Flashing via the
+configured runner:
+
+```sh
+cargo flash              # cargo run -p lumio-firmware --target thumbv6m-none-eabi
+```
+
+
+## Simulator
+
+The simulator runs the real show code as WebAssembly and draws the 24×60 LEDs
+as a star of beams on a `<canvas>`. It does not need a board.
+
+Prerequisites (once):
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install trunk --locked
+```
+
+> **Note:** if `cargo install trunk` fails while compiling `libdeflate-sys`
+> (`unknown argument no-evex512`), the local toolchain rejects that GCC target
+> attribute. Install with
+> `CFLAGS="-D__EVEX512__" CXXFLAGS="-D__EVEX512__" cargo install trunk --locked`.
+
+Run it:
+
+```sh
+cd sim
+trunk serve
+```
+
+Then open <http://127.0.0.1:8080>. Use the show picker to jump between effects,
+pause/resume or step a single frame, change the speed, and press-and-hold the
+**Advance** / **Action** buttons to imitate the two hardware buttons (a press
+longer than 1 s is a long press).
+
+To build a static bundle instead of serving:
+
+```sh
+cd sim
+trunk build --release   # output in sim/dist
+```
+
+
 Feel free to ask questions in the issue tracker.

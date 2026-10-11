@@ -1,0 +1,10 @@
+[package]
+name = "lumio-core"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+description = "Hardware-independent LED show logic for the lumio LED flower"
+
+[dependencies]
+libm.workspace = true
+rand.workspace = true

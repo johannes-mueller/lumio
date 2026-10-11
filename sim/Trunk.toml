@@ -1,0 +1,9 @@
+[build]
+target = "index.html"
+dist = "dist"
+# Keep filenames stable so main.js can import the generated bindings directly.
+filehash = false
+
+[serve]
+port = 8080
+open = false
