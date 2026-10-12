@@ -182,7 +182,7 @@ async function main() {
   speedInput.addEventListener("input", () => {
     const value = Number(speedInput.value);
     sim.set_speed(value);
-    speedValue.textContent = `${value.toFixed(1)}×`;
+    speedValue.textContent = `${value.toFixed(2)}×`;
   });
 
   gammaInput.addEventListener("input", () => {

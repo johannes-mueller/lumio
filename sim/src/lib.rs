@@ -130,7 +130,7 @@ impl Sim {
             shared,
             interface,
             player,
-            speed: 1.0,
+            speed: 0.75,
             paused: false,
             last_real_us: 0.0,
             sim_time_us: 0,
