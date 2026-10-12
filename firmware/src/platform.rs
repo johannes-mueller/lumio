@@ -16,6 +16,9 @@ use rp_pico::hal::{
     watchdog::Watchdog,
 };
 
+const PERI_FEQUENCY: u32 = 450_000_000u32;
+const BAUD_RATE:  u32 = 8_000_000u32;
+
 use lumio_core::platform::{ButtonId, Micros, Platform, StatusLedId};
 
 type ButtonPinAdvance = Pin<gpio::bank0::Gpio21, FunctionSio<SioInput>, PullUp>;
@@ -82,8 +85,8 @@ impl FirmwarePlatform {
         let mosi = pins.gpio7.into_function::<FunctionSpi>();
         let spi0 = Spi::<_, _, _, 8>::new(pac.SPI0, (mosi, sclk)).init(
             &mut pac.RESETS,
-            450_000_000u32.Hz(),
-            8_000_000u32.Hz(),
+            PERI_FEQUENCY.Hz(),
+            BAUD_RATE.Hz(),
             MODE_0,
         );
 
@@ -91,8 +94,8 @@ impl FirmwarePlatform {
         let mosi = pins.gpio15.into_function::<FunctionSpi>();
         let spi1 = Spi::<_, _, _, 8>::new(pac.SPI1, (mosi, sclk)).init(
             &mut pac.RESETS,
-            450_000_000u32.Hz(),
-            8_000_000u32.Hz(),
+            PERI_FEQUENCY.Hz(),
+            BAUD_RATE.Hz(),
             MODE_0,
         );
 
