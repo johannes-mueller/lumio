@@ -15,6 +15,7 @@ use crate::snake::SnakeShow;
 use crate::sparks::{FireWorks, SnowSparks, SparkFall};
 use crate::spiral::HueSpiral;
 use crate::stars::Stars;
+use crate::snow::SnowShow;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum StepResult {
@@ -122,18 +123,21 @@ define_player! {
         (0,  planets,          PlanetShow,    PlanetShow::new(),                        "Planets"),
         (1,  particle_spiral,  ParticleCrash, ParticleCrash::new_spiral(),              "Particle Crash (spiral)"),
         (2,  sine,             SineShow,      SineShow::new(),                          "Sine"),
-        (3,  fire_green,       Fire,          Fire::new_green(),                        "Fire (green)"),
-        (4,  spiral_lift,      HueSpiral,     HueSpiral::new_lift(),                    "Spiral (lift)"),
-        (5,  sea_chaos,        SeaWave,       SeaWave::new(0.63, 0.5, Some(9800), 8),   "Sea Wave (chaos)"),
-        (6,  fireworks,        FireWorks,     FireWorks::new(),                         "Fireworks"),
-        (7,  spiral_swirl,     HueSpiral,     HueSpiral::new_swirl(),                   "Spiral (swirl)"),
-        (8,  snow,             SnowSparks,    SnowSparks::new(),                        "Snow"),
-        (9,  eo_stars,         Stars,         Stars::new(DARK_GREEN, WHITE),            "Stars (Esperanto)"),
-        (10, particle_random,  ParticleCrash, ParticleCrash::new_random(),              "Particle Crash"),
-        (11, sea_order,        SeaWave,       SeaWave::new(0.99, 0.99, Some(1050), 12), "Sea Wave (order)"),
-        (12, snake,            SnakeShow,     SnakeShow::new(),                         "Snake"),
-        (13, spark_fall,       SparkFall,     SparkFall::new(),                         "Spark Fall"),
-        (14, eu_stars,         Stars,         Stars::new(DARK_BLUE, YELLOW),            "Stars (EU)"),
-        (15, fire_red,         Fire,          Fire::new_red(),                          "Fire (red)"),
+        (3,  snowshow_90,      SnowShow<90>,  SnowShow::<90>::new(),                    "Snow-90"),
+
+        (4,  fire_green,       Fire,          Fire::new_green(),                        "Fire (green)"),
+        (5,  spiral_lift,      HueSpiral,     HueSpiral::new_lift(),                    "Spiral (lift)"),
+        (6,  sea_chaos,        SeaWave,       SeaWave::new(0.63, 0.5, Some(9800), 8),   "Sea Wave (chaos)"),
+        (7,  fireworks,        FireWorks,     FireWorks::new(),                         "Fireworks"),
+        (8,  spiral_swirl,     HueSpiral,     HueSpiral::new_swirl(),                   "Spiral (swirl)"),
+        (9,  snow,             SnowSparks,    SnowSparks::new(),                        "Snow"),
+        (10,  eo_stars,         Stars,         Stars::new(DARK_GREEN, WHITE),            "Stars (Esperanto)"),
+        (11, particle_random,  ParticleCrash, ParticleCrash::new_random(),              "Particle Crash"),
+        (12, sea_order,        SeaWave,       SeaWave::new(0.99, 0.99, Some(1050), 12), "Sea Wave (order)"),
+        (13, snake,            SnakeShow,     SnakeShow::new(),                         "Snake"),
+        (14, spark_fall,       SparkFall,     SparkFall::new(),                         "Spark Fall"),
+        (15, eu_stars,         Stars,         Stars::new(DARK_BLUE, YELLOW),            "Stars (EU)"),
+        (16, fire_red,         Fire,          Fire::new_red(),                          "Fire (red)"),
+        (17,  snowshow_180,      SnowShow<180>,  SnowShow::<180>::new(),                    "Snow-180"),
     ]
 }

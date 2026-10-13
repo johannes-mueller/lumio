@@ -28,6 +28,7 @@ pub mod snake;
 pub mod sparks;
 pub mod spiral;
 pub mod stars;
+pub mod snow;
 
 pub use interface::Interface;
 pub use player::{Player, Show, StepResult};
