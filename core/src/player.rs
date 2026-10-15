@@ -36,7 +36,7 @@ macro_rules! define_player {
     (
         $vis:vis struct $player:ident;
         shows: [
-            $( ($idx:literal, $field:ident, $ty:ty, $ctor:expr, $name:literal) ),* $(,)?
+            $( ($field:ident, $ty:ty, $ctor:expr, $name:literal) ),* $(,)?
         ]
     ) => {
         /// The ordered playlist of shows.
@@ -76,10 +76,16 @@ macro_rules! define_player {
             }
 
             fn show_mut(&mut self) -> &mut dyn Show {
-                match self.current {
-                    $( $idx => &mut self.$field, )*
-                    _ => unreachable!(),
-                }
+                // The shows are dispatched in list order; `self.current` is
+                // just a position in that list.
+                let mut position = self.current;
+                $(
+                    if position == 0 {
+                        return &mut self.$field;
+                    }
+                    position -= 1;
+                )*
+                unreachable!()
             }
 
             pub fn reset_current(&mut self, iface: &mut Interface<'_>) {
@@ -120,24 +126,24 @@ macro_rules! define_player {
 define_player! {
     pub struct Player;
     shows: [
-        (0,  planets,          PlanetShow,    PlanetShow::new(),                        "Planets"),
-        (1,  particle_spiral,  ParticleCrash, ParticleCrash::new_spiral(),              "Particle Crash (spiral)"),
-        (2,  sine,             SineShow,      SineShow::new(),                          "Sine"),
-        (3,  snowshow_90,      SnowShow<90>,  SnowShow::<90>::new(),                    "Snow-90"),
+        (planets,          PlanetShow,    PlanetShow::new(),                        "Planets"),
+        (particle_spiral,  ParticleCrash, ParticleCrash::new_spiral(),              "Particle Crash (spiral)"),
+        (sine,             SineShow,      SineShow::new(),                          "Sine"),
+        (snowshow_90,      SnowShow<90>,  SnowShow::<90>::new(),                    "Snow-90"),
 
-        (4,  fire_green,       Fire,          Fire::new_green(),                        "Fire (green)"),
-        (5,  spiral_lift,      HueSpiral,     HueSpiral::new_lift(),                    "Spiral (lift)"),
-        (6,  sea_chaos,        SeaWave,       SeaWave::new(0.63, 0.5, Some(9800), 8),   "Sea Wave (chaos)"),
-        (7,  fireworks,        FireWorks,     FireWorks::new(),                         "Fireworks"),
-        (8,  spiral_swirl,     HueSpiral,     HueSpiral::new_swirl(),                   "Spiral (swirl)"),
-        (9,  snow,             SnowSparks,    SnowSparks::new(),                        "Snow"),
-        (10,  eo_stars,         Stars,         Stars::new(DARK_GREEN, WHITE),            "Stars (Esperanto)"),
-        (11, particle_random,  ParticleCrash, ParticleCrash::new_random(),              "Particle Crash"),
-        (12, sea_order,        SeaWave,       SeaWave::new(0.99, 0.99, Some(1050), 12), "Sea Wave (order)"),
-        (13, snake,            SnakeShow,     SnakeShow::new(),                         "Snake"),
-        (14, spark_fall,       SparkFall,     SparkFall::new(),                         "Spark Fall"),
-        (15, eu_stars,         Stars,         Stars::new(DARK_BLUE, YELLOW),            "Stars (EU)"),
-        (16, fire_red,         Fire,          Fire::new_red(),                          "Fire (red)"),
-        (17,  snowshow_180,      SnowShow<180>,  SnowShow::<180>::new(),                    "Snow-180"),
+        (fire_green,       Fire,          Fire::new_green(),                        "Fire (green)"),
+        (spiral_lift,      HueSpiral,     HueSpiral::new_lift(),                    "Spiral (lift)"),
+        (sea_chaos,        SeaWave,       SeaWave::new(0.63, 0.5, Some(9800), 8),   "Sea Wave (chaos)"),
+        (fireworks,        FireWorks,     FireWorks::new(),                         "Fireworks"),
+        (spiral_swirl,     HueSpiral,     HueSpiral::new_swirl(),                   "Spiral (swirl)"),
+        (snow,             SnowSparks,    SnowSparks::new(),                        "Snow"),
+        (eo_stars,         Stars,         Stars::new(DARK_GREEN, WHITE),            "Stars (Esperanto)"),
+        (particle_random,  ParticleCrash, ParticleCrash::new_random(),              "Particle Crash"),
+        (sea_order,        SeaWave,       SeaWave::new(0.99, 0.99, Some(1050), 12), "Sea Wave (order)"),
+        (snake,            SnakeShow,     SnakeShow::new(),                         "Snake"),
+        (spark_fall,       SparkFall,     SparkFall::new(),                         "Spark Fall"),
+        (eu_stars,         Stars,         Stars::new(DARK_BLUE, YELLOW),            "Stars (EU)"),
+        (fire_red,         Fire,          Fire::new_red(),                          "Fire (red)"),
+        (snowshow_180,     SnowShow<180>, SnowShow::<180>::new(),                   "Snow-180"),
     ]
 }
