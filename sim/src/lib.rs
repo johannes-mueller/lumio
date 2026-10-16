@@ -209,7 +209,7 @@ impl Sim {
     }
 
     pub fn show_names(&self) -> Vec<String> {
-        Player::names().iter().map(|s| s.to_string()).collect()
+        self.player.names().iter().map(|s| s.to_string()).collect()
     }
 
     pub fn show_count(&self) -> usize {

@@ -178,6 +178,13 @@ impl ParticleCrash {
 }
 
 impl Show for ParticleCrash {
+    fn title(&self) -> &'static str {
+        match self.manor {
+            Manor::Spiral => "Particle Crash (spiral)",
+            Manor::Randomly => "Particle Crash",
+        }
+    }
+
     fn reset(&mut self, _iface: &mut Interface<'_>) {
         self.explosions.reset();
         for bp in self.big_particles.iter_mut() {

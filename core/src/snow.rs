@@ -90,6 +90,14 @@ impl<const NUM_SNOW_FLAKES: usize> SnowShow<NUM_SNOW_FLAKES> {
 }
 
 impl<const NUM_SNOW_FLAKES: usize> Show for SnowShow<NUM_SNOW_FLAKES> {
+    fn title(&self) -> &'static str {
+        match NUM_SNOW_FLAKES {
+            90 => "Snow-90",
+            180 => "Snow-180",
+            _ => "Snow",
+        }
+    }
+
     fn reset(&mut self, iface: &mut Interface<'_>) {
         for flake in self.flakes.iter_mut() {
             //flake.reset(iface);

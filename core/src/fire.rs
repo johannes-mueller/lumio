@@ -117,6 +117,13 @@ impl Fire {
 }
 
 impl Show for Fire {
+    fn title(&self) -> &'static str {
+        match self.color {
+            FireColor::Red => "Fire (red)",
+            FireColor::Green => "Fire (green)",
+        }
+    }
+
     fn reset(&mut self, _iface: &mut Interface<'_>) {
         self.heat = [0u8; NUM_LED];
     }

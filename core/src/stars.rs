@@ -1,5 +1,6 @@
 use crate::{
-    conf::NUM_LED, conf::STRIP_NUM, interface::Interface, led::Color, ledstrip::LEDStrip,
+    conf::NUM_LED, conf::STRIP_NUM, interface::Interface,
+    led::{Color, DARK_BLUE, DARK_GREEN, WHITE, YELLOW}, ledstrip::LEDStrip,
     player::{Show, StepResult}, random,
 };
 
@@ -39,6 +40,16 @@ impl Stars {
 }
 
 impl Show for Stars {
+    fn title(&self) -> &'static str {
+        if self.sky_color == DARK_GREEN && self.star_color == WHITE {
+            "Stars (Esperanto)"
+        } else if self.sky_color == DARK_BLUE && self.star_color == YELLOW {
+            "Stars (EU)"
+        } else {
+            "Stars"
+        }
+    }
+
     fn reset(&mut self, iface: &mut Interface<'_>) {
         self.fill_sky(&mut iface.led_strip());
     }

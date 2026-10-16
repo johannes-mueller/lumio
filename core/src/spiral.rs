@@ -76,6 +76,13 @@ impl HueSpiral {
 }
 
 impl Show for HueSpiral {
+    fn title(&self) -> &'static str {
+        match self.mode {
+            SpiralMode::Lift => "Spiral (lift)",
+            SpiralMode::Swirl => "Spiral (swirl)",
+        }
+    }
+
     fn reset(&mut self, _iface: &mut Interface<'_>) {
         self.spiral.reset();
     }
