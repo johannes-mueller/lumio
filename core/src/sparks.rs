@@ -248,6 +248,10 @@ impl FireWorks {
 }
 
 impl Show for FireWorks {
+    fn title(&self) -> &'static str {
+        "Fireworks"
+    }
+
     fn reset(&mut self, _iface: &mut Interface<'_>) {
         for ms in self.mono_sparks.iter_mut() {
             ms.deactivate();
@@ -313,6 +317,10 @@ impl SnowSparks {
 }
 
 impl Show for SnowSparks {
+    fn title(&self) -> &'static str {
+        "Snow"
+    }
+
     fn reset(&mut self, _iface: &mut Interface<'_>) {
         self.hue = 1.0;
         for s in self.sparks.iter_mut() {
@@ -359,6 +367,10 @@ impl SparkFall {
 }
 
 impl Show for SparkFall {
+    fn title(&self) -> &'static str {
+        "Spark Fall"
+    }
+
     fn reset(&mut self, _iface: &mut Interface<'_>) {
         for s in self.sparks.iter_mut() {
             s.deactivate();

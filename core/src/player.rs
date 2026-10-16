@@ -30,13 +30,16 @@ pub trait Show {
 
     /// Render exactly one frame.
     fn step(&mut self, iface: &mut Interface<'_>) -> StepResult;
+
+    /// Human-readable title, shown in the simulator's show list.
+    fn title(&self) -> &'static str;
 }
 
 macro_rules! define_player {
     (
         $vis:vis struct $player:ident;
         shows: [
-            $( ($field:ident, $ty:ty, $ctor:expr, $name:literal) ),* $(,)?
+            $( ($field:ident, $ty:ty, $ctor:expr) ),* $(,)?
         ]
     ) => {
         /// The ordered playlist of shows.
@@ -46,6 +49,9 @@ macro_rules! define_player {
         }
 
         impl $player {
+            /// Number of shows in the playlist.
+            pub const NUM_SHOWS: usize = [ $( stringify!($field) ),* ].len();
+
             pub fn new(iface: &mut Interface<'_>) -> Self {
                 let mut player = Self {
                     current: 0,
@@ -57,12 +63,13 @@ macro_rules! define_player {
 
             #[allow(dead_code)]
             pub fn count() -> usize {
-                [ $( $name ),* ].len()
+                Self::NUM_SHOWS
             }
 
+            /// Titles of all shows, in playlist order.
             #[allow(dead_code)]
-            pub fn names() -> &'static [&'static str] {
-                &[ $( $name ),* ]
+            pub fn names(&self) -> [&'static str; Self::NUM_SHOWS] {
+                [ $( self.$field.title(), )* ]
             }
 
             #[allow(dead_code)]
@@ -72,7 +79,7 @@ macro_rules! define_player {
 
             #[allow(dead_code)]
             pub fn current_name(&self) -> &'static str {
-                Self::names()[self.current]
+                self.names()[self.current]
             }
 
             fn show_mut(&mut self) -> &mut dyn Show {
@@ -126,24 +133,24 @@ macro_rules! define_player {
 define_player! {
     pub struct Player;
     shows: [
-        (planets,          PlanetShow,    PlanetShow::new(),                        "Planets"),
-        (particle_spiral,  ParticleCrash, ParticleCrash::new_spiral(),              "Particle Crash (spiral)"),
-        (sine,             SineShow,      SineShow::new(),                          "Sine"),
-        (snowshow_90,      SnowShow<90>,  SnowShow::<90>::new(),                    "Snow-90"),
+        (planets,          PlanetShow,    PlanetShow::new()),
+        (particle_spiral,  ParticleCrash, ParticleCrash::new_spiral()),
+        (sine,             SineShow,      SineShow::new()),
+        (snowshow_90,      SnowShow<90>,  SnowShow::<90>::new()),
 
-        (fire_green,       Fire,          Fire::new_green(),                        "Fire (green)"),
-        (spiral_lift,      HueSpiral,     HueSpiral::new_lift(),                    "Spiral (lift)"),
-        (sea_chaos,        SeaWave,       SeaWave::new(0.63, 0.5, Some(9800), 8),   "Sea Wave (chaos)"),
-        (fireworks,        FireWorks,     FireWorks::new(),                         "Fireworks"),
-        (spiral_swirl,     HueSpiral,     HueSpiral::new_swirl(),                   "Spiral (swirl)"),
-        (snow,             SnowSparks,    SnowSparks::new(),                        "Snow"),
-        (eo_stars,         Stars,         Stars::new(DARK_GREEN, WHITE),            "Stars (Esperanto)"),
-        (particle_random,  ParticleCrash, ParticleCrash::new_random(),              "Particle Crash"),
-        (sea_order,        SeaWave,       SeaWave::new(0.99, 0.99, Some(1050), 12), "Sea Wave (order)"),
-        (snake,            SnakeShow,     SnakeShow::new(),                         "Snake"),
-        (spark_fall,       SparkFall,     SparkFall::new(),                         "Spark Fall"),
-        (eu_stars,         Stars,         Stars::new(DARK_BLUE, YELLOW),            "Stars (EU)"),
-        (fire_red,         Fire,          Fire::new_red(),                          "Fire (red)"),
-        (snowshow_180,     SnowShow<180>, SnowShow::<180>::new(),                   "Snow-180"),
+        (fire_green,       Fire,          Fire::new_green()),
+        (spiral_lift,      HueSpiral,     HueSpiral::new_lift()),
+        (sea_chaos,        SeaWave,       SeaWave::new_chaos()),
+        (fireworks,        FireWorks,     FireWorks::new()),
+        (spiral_swirl,     HueSpiral,     HueSpiral::new_swirl()),
+        (snow,             SnowSparks,    SnowSparks::new()),
+        (eo_stars,         Stars,         Stars::new(DARK_GREEN, WHITE)),
+        (particle_random,  ParticleCrash, ParticleCrash::new_random()),
+        (sea_order,        SeaWave,       SeaWave::new_order()),
+        (snake,            SnakeShow,     SnakeShow::new()),
+        (spark_fall,       SparkFall,     SparkFall::new()),
+        (eu_stars,         Stars,         Stars::new(DARK_BLUE, YELLOW)),
+        (fire_red,         Fire,          Fire::new_red()),
+        (snowshow_180,     SnowShow<180>, SnowShow::<180>::new()),
     ]
 }

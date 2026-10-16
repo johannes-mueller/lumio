@@ -125,6 +125,10 @@ impl PlanetShow {
 }
 
 impl Show for PlanetShow {
+    fn title(&self) -> &'static str {
+        "Planets"
+    }
+
     fn reset(&mut self, interface: &mut Interface<'_>) {
         self.planets = initialize_planets(interface);
         self.with_collisions = true;

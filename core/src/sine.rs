@@ -78,6 +78,10 @@ impl SineShow {
 }
 
 impl Show for SineShow {
+    fn title(&self) -> &'static str {
+        "Sine"
+    }
+
     fn reset(&mut self, _iface: &mut Interface<'_>) {
         self.sine = Sine::new(30, 502, 28);
         self.hue = 0.0;
@@ -131,6 +135,7 @@ enum Elastic {
 }
 
 pub struct SeaWave {
+    name: &'static str,
     hue: f32,
     hue_spark: f32,
     elastic: Elastic,
@@ -139,23 +144,33 @@ pub struct SeaWave {
 }
 
 impl SeaWave {
-    pub fn new(
+    fn with_name(
+        name: &'static str,
         hue: f32,
         hue_spark: f32,
         elastic: Option<isize>,
-        ampl: isize
+        ampl: isize,
     ) -> SeaWave {
         let elastic = match elastic {
             Some(v) => Elastic::Constant(v),
             None => Elastic::Varying(Sine::new(1100, 12, 200)),
         };
         SeaWave {
+            name,
             hue,
             hue_spark,
             elastic,
             ampl,
             sine: Sine::new(40, 0, ampl),
         }
+    }
+
+    pub fn new_chaos() -> SeaWave {
+        SeaWave::with_name("Sea Wave (chaos)", 0.63, 0.5, Some(9800), 8)
+    }
+
+    pub fn new_order() -> SeaWave {
+        SeaWave::with_name("Sea Wave (order)", 0.99, 0.99, Some(1050), 12)
     }
 
     fn elastic(&mut self) -> isize {
@@ -167,6 +182,10 @@ impl SeaWave {
 }
 
 impl Show for SeaWave {
+    fn title(&self) -> &'static str {
+        self.name
+    }
+
     fn reset(&mut self, _iface: &mut Interface<'_>) {
         self.sine = Sine::new(40, 0, self.ampl);
     }

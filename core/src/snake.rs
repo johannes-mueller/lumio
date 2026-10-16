@@ -88,6 +88,10 @@ impl SnakeShow {
 }
 
 impl Show for SnakeShow {
+    fn title(&self) -> &'static str {
+        "Snake"
+    }
+
     fn reset(&mut self, _iface: &mut Interface<'_>) {
         self.running = false;
         self.step = 0;
