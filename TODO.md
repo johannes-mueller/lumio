@@ -147,6 +147,73 @@ Modules live in `core/src/`: `conf`, `math8`, `random`, `led`, `ledstrip`,
 - [ ] Confirm output is deterministic across reloads (fixed RNG seeds).
 - [ ] Update `README.md` with a "Simulator" section (build/run instructions).
 
+## Phase 7 — Restore USB UART interface
+
+The RP2040 firmware used to expose a USB CDC ("USB UART") interface that the
+host could use to communicate with the firmware. It was drafted and cleaned up
+on `main` in `61b1d9e` ("Draft usb communication") — after this branch
+diverged — so none of it exists in the current workspace layout. The original
+implementation lives in `main:src/interface.rs` (all the CDC plumbing) and
+`main:src/main.rs` (one `poll_usb()` call plus newline-terminated ASCII show
+announcements: `"snow\n"`, `"sine\n"`, …). The `usb-old` branch (`41ba30e`
+"Somewhat working usb") has a working bidirectional read/echo loop that is a
+useful reference. Restoring it here should be **bidirectional** so the
+simulator's chat window (below) can both display and send messages.
+
+### Firmware side
+
+- [x] Add `usb-device = "0.2.9"` and `usbd-serial = "0.1.1"` to `firmware/Cargo.toml` (the exact versions used on `main`).
+      (Later upgraded to `usb-device 0.3` / `usbd-serial 0.2`, together with
+      `rp-pico 0.9` / `rp2040-hal 0.10` — its `UsbBus` implements the 0.3
+      `usb-device` trait, so both bumps belong together.)
+- [x] Restore the CDC setup in `FirmwarePlatform` (or a new `firmware/src/usb.rs`), mirroring `main:src/interface.rs`:
+      - [x] take `USBCTRL_REGS`, `USBCTRL_DPRAM`, `clocks.usb_clock` and `RESETS` **before** the other peripherals are consumed,
+            (`usb_clock` moves out of `clocks` right after `Timer::new`, the last
+            whole-`clocks` borrower; `USBCTRL_REGS`/`USBCTRL_DPRAM` are taken first)
+      - [x] allocate the bus via `cortex_m::singleton!(: UsbBusAllocator<UsbBus> = UsbBusAllocator::new(UsbBus::new(...)))`,
+      - [x] build the `UsbDevice` with `device_class(2)` (CDC) and the original identity: VID/PID `0x16c0:0x27dd`, manufacturer `"c3eo"`, product `"Lumio"`, serial `"001"`.
+- [x] Extend the `Platform` trait in `core/src/platform.rs` with USB methods — `usb_poll()`, `usb_write(&[u8])`, `usb_read(&mut [u8])` — with **default no-op impls** so the WASM sim stays unaffected until it implements them.
+      (`Interface` forwards them to the platform.)
+- [x] Call `usb_poll()` once per `Player::tick` (1/60 s cadence); on `main` it was polled once outside the show loop, which is not possible with the steppable player.
+- [x] Emit `"<show>\n"` via `usb_write` on show transitions, using `player.current_name()` (replaces the hand-written labels in `main:src/main.rs`).
+      (Also announced once at boot, right after `Player::new`.)
+- [x] Drain `usb_read` each tick; treat newline-terminated ASCII lines as inbound messages.
+      (Done: the player echoes newline-terminated lines back to the host, and
+      drops overly long lines. Optional later: command dispatch, e.g. switching
+      shows from the host.)
+
+### Simulator side (chat window)
+
+- [x] Add a message log (`Vec<String>` or ring buffer) to `Shared` in `sim/src/lib.rs`.
+      (A `VecDeque<String>` capped at 200 lines; written bytes are accumulated
+      and flushed into the log on each newline.)
+- [x] Expose the wasm API:
+      - [x] `Sim::messages() -> Vec<String>` for the chat pane,
+      - [x] `Sim::send(text: String)` to queue inbound chat text.
+- [x] Implement the new `Platform` USB methods in `SimPlatform`:
+      - [x] `usb_write` payloads are appended to the message log (so show announcements appear as chat lines),
+      - [x] chat text queued via `Sim::send` is drained by `usb_read` during `tick`.
+- [x] UI, following the existing control-panel pattern:
+      - [x] `sim/index.html`: a scrollable message panel (`<div id="chat">`) with an `<input>` + send button at the bottom of the control panel,
+      - [x] `sim/styles.css`: style the chat pane (fixed height, scroll to bottom),
+      - [x] `sim/main.js`: refresh the message pane from `sim.messages()` inside the existing `frameLoop` poll-per-frame pattern, and wire the send button / Enter key to `sim.send(text)`.
+
+### Notes
+
+- [x] **Polling cadence:** `main` polled USB outside the show loop; the new player ticks once per frame, so the poll (and read/write) belong inside `Player::tick`.
+- [x] **Driver versions:** started with `usb-device 0.2.9` to match the proven
+      `main` code, then upgraded to `usb-device 0.3` / `usbd-serial 0.2` (and
+      `rp-pico 0.9` / `rp2040-hal 0.10`, whose USB bus implements the 0.3 trait).
+      The 0.3 string-descriptor API (`manufacturer`/`product`/`serial_number`)
+      moved into `StringDescriptors`, passed via `UsbDeviceBuilder::strings`.
+      `usbd-serial` 0.2 buffers writes internally, so each `usb_write` call now
+      survives multiple frames at the 1/60 s poll cadence. Moving to
+      `embassy-usb` remains a separate later task.
+- [ ] **`usb_read` was unused on `main`** — the write side is proven, the read side needs its first real test (the `usb-old` echo loop is the reference).
+      The echo path is implemented and covered by a simulator test
+      (`chat_message_is_echoed_back`), but real-hardware verification over a
+      physical USB CDC link is still outstanding.
+
 ## Known risks / notes
 
 - [x] **Firmware pacing change:** shows no longer loop internally; the `Player` ticks each show once per loop iteration.
@@ -154,7 +221,8 @@ Modules live in `core/src/`: `conf`, `math8`, `random`, `led`, `ledstrip`,
 - [x] `delay_ms` in sim is a **no-op** for the first cut (sim cannot block).
 - [x] `rand` `SmallRng` + `libm` need no OS entropy → sim is fully deterministic.
 - [x] `power_test.rs` moved to `core/src/power_test.rs` but stays undeclared, so it is not compiled and not in the playlist.
-- [ ] **Trunk install needed a workaround:** `trunk` 0.21.14 pulls `libdeflate-sys`, whose C sources use the GCC target attribute `no-evex512`, which this toolchain rejects. Installing with `CFLAGS="-D__EVEX512__" CXXFLAGS="-D__EVEX512__"` makes it build. Re-check if this is still required after a toolchain upgrade.
+- [x] **Trunk install needed a workaround:** `trunk` 0.21.14 pulls `libdeflate-sys`, whose C sources use the GCC target attribute `no-evex512`, which this toolchain rejects. Installing with `CFLAGS="-D__EVEX512__" CXXFLAGS="-D__EVEX512__"` makes it build. Re-check if this is still required after a toolchain upgrade.
+- [x] **`thumbv6m` builds needed the 1.86 toolchain at one point:** rustc ≥ 1.90 removed the `-C inline-threshold` rustflag. Fixed by switching the flag in `.cargo/config.toml` to `-Cllvm-args=--inline-threshold=5` (LLVM's own spelling), so `cargo build --target thumbv6m-none-eabi` works on the default stable toolchain again.
 
 ## Later / nice-to-have
 

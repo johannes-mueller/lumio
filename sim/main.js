@@ -23,6 +23,12 @@ const autoLed = document.getElementById("auto-led");
 const activeLed = document.getElementById("active-led");
 const advanceButton = document.getElementById("btn-advance");
 const actionButton = document.getElementById("btn-action");
+const chat = document.getElementById("chat");
+const chatForm = document.getElementById("chat-form");
+const chatInput = document.getElementById("chat-input");
+
+// Cache the log key so the pane is only rebuilt when messages change.
+let chatKey = "";
 
 let sim = null;
 let outerRadius = 300;
@@ -105,10 +111,39 @@ function syncHud() {
   activeLed.classList.toggle("on", sim.active_led());
 }
 
+function syncChat() {
+  const messages = sim.messages();
+  const key = messages.join("\u0001");
+  if (key === chatKey) return;
+  chatKey = key;
+
+  const stick = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 4;
+
+  chat.replaceChildren();
+  if (messages.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "No messages yet.";
+    chat.appendChild(empty);
+  } else {
+    for (const message of messages) {
+      const line = document.createElement("div");
+      line.className = "message";
+      line.textContent = message;
+      chat.appendChild(line);
+    }
+  }
+
+  if (stick) {
+    chat.scrollTop = chat.scrollHeight;
+  }
+}
+
 function frameLoop(now) {
   sim.tick(now);
   draw();
   syncHud();
+  syncChat();
   requestAnimationFrame(frameLoop);
 }
 
@@ -192,6 +227,15 @@ async function main() {
 
   bindHold(advanceButton, "advance");
   bindHold(actionButton, "action");
+
+  chatForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const text = chatInput.value.trim();
+    if (text === "") return;
+    sim.send(text);
+    chatInput.value = "";
+    syncChat();
+  });
 
   resize();
   window.addEventListener("resize", resize);

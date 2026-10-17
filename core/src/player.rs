@@ -17,6 +17,9 @@ use crate::spiral::HueSpiral;
 use crate::stars::Stars;
 use crate::snow::SnowShow;
 
+/// Longest inbound USB CDC line the player keeps while waiting for a newline.
+const USB_LINE_MAX: usize = 64;
+
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum StepResult {
     Running,
@@ -46,6 +49,9 @@ macro_rules! define_player {
         $vis struct $player {
             current: usize,
             $( $field: $ty, )*
+            /// Incoming USB CDC bytes not yet terminated by a newline.
+            rx_buf: [u8; USB_LINE_MAX],
+            rx_len: usize,
         }
 
         impl $player {
@@ -56,8 +62,11 @@ macro_rules! define_player {
                 let mut player = Self {
                     current: 0,
                     $( $field: $ctor, )*
+                    rx_buf: [0; USB_LINE_MAX],
+                    rx_len: 0,
                 };
                 player.reset_current(iface);
+                player.announce(iface);
                 player
             }
 
@@ -110,12 +119,54 @@ macro_rules! define_player {
             pub fn next(&mut self, iface: &mut Interface<'_>) {
                 self.current = (self.current + 1) % Self::count();
                 self.reset_current(iface);
+                self.announce(iface);
+            }
+
+            /// Announce the current show over USB CDC as `"<show>\n"`.
+            fn announce(&mut self, iface: &mut Interface<'_>) {
+                let title = self.current_name();
+                let _ = iface.usb_write(title.as_bytes());
+                let _ = iface.usb_write(b"\n");
+            }
+
+            /// Service the CDC stack and drain inbound bytes. Newline-terminated
+            /// ASCII lines are echoed back so a host can see its message arrived.
+            fn poll_usb(&mut self, iface: &mut Interface<'_>) {
+                iface.usb_poll();
+
+                let mut chunk = [0u8; 32];
+                for _ in 0..4 {
+                    let count = iface.usb_read(&mut chunk);
+                    if count == 0 {
+                        break;
+                    }
+                    for &byte in &chunk[..count] {
+                        if byte == b'\n' {
+                            let mut line = &self.rx_buf[..self.rx_len];
+                            while let Some((b'\r', rest)) = line.split_last() {
+                                line = rest;
+                            }
+                            if !line.is_empty() {
+                                let _ = iface.usb_write(line);
+                                let _ = iface.usb_write(b"\n");
+                            }
+                            self.rx_len = 0;
+                        } else if self.rx_len < USB_LINE_MAX {
+                            self.rx_buf[self.rx_len] = byte;
+                            self.rx_len += 1;
+                        } else {
+                            // Line overflow: drop it like a newline would.
+                            self.rx_len = 0;
+                        }
+                    }
+                }
             }
 
             /// Run exactly one simulation frame. Returns `true` if the active
             /// show changed during this frame.
             pub fn tick(&mut self, iface: &mut Interface<'_>) -> bool {
                 iface.begin_tick();
+                self.poll_usb(iface);
                 let done = self.show_mut().step(iface) == StepResult::Done;
                 if done || iface.do_next() {
                     iface.led_strip().black();

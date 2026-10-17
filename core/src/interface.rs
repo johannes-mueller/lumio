@@ -89,4 +89,21 @@ impl<'p> Interface<'p> {
     pub fn delay_ms(&mut self, delay: u32) {
         self.platform.delay_ms(delay);
     }
+
+    // -- USB CDC passthrough -------------------------------------------------
+
+    /// Service the USB CDC stack. Call once per frame, before any read/write.
+    pub fn usb_poll(&mut self) {
+        self.platform.usb_poll();
+    }
+
+    /// Write bytes to the USB CDC serial port.
+    pub fn usb_write(&mut self, data: &[u8]) -> usize {
+        self.platform.usb_write(data)
+    }
+
+    /// Read pending bytes from the USB CDC serial port.
+    pub fn usb_read(&mut self, buf: &mut [u8]) -> usize {
+        self.platform.usb_read(buf)
+    }
 }
