@@ -12,28 +12,29 @@ permissions:
   id-token: write
   pull-requests: write
 
+# Previous plan: every deploy dropped the whole site. This workflow always
+# deploys the *complete* site (main root + one directory per open sim PR), so
+# each run is self-contained; only the newest run still needs to win. No other
+# workflow may touch the Pages deployment, so one group is enough.
 concurrency:
-  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
+  group: pages-site
   cancel-in-progress: true
 
 jobs:
-  build:
+  # Figure out what the site should contain: the root build from main plus one
+  # preview directory per open PR that touches sim/. Close events end up
+  # listing open PRs only, so a closed PR vanishes on the very same deploy.
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      base_path: ${{ steps.base.outputs.base_path }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      # Whether the PR that triggered this run made it onto the site map. Only
+      # then is a preview comment posted.
+      pr_in_site: ${{ steps.matrix.outputs.pr_in_site }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Install trunk
-        uses: taiki-e/install-action@v2
-        with:
-          tool: trunk
-
-      - name: Build simulator
+      - name: Compute base path
+        id: base
         run: |
           # Project Pages sites are served under /<repo-name>/; user/org Pages
           # repos (<owner>.github.io) are served from the root.
@@ -42,18 +43,80 @@ jobs:
             BASE_PATH=""
           fi
           BASE_PATH="${BASE_PATH}/"
-          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" != "closed" ]; then
-            PR_NUM="${{ github.event.pull_request.number }}"
+          echo "base_path=$BASE_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Build the site map (main + every open sim PR)
+        id: matrix
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BASE_PATH="${{ steps.base.outputs.base_path }}"
+
+          entries="$(jq -cn --arg url "$BASE_PATH" \
+            '{name:"main", ref:"main", dir:"", public_url:$url}')"
+          pr_in_site=false
+
+          # List open PRs; include only those that change the simulator build:
+          # sim/ (the wasm app) and core/ (the shared show logic), plus the
+          # workspace-level dependency files. Unrelated PRs (e.g. only touching
+          # firmware/) or .github/) do not burn Rust build minutes.
+          pr_numbers="$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --paginate --jq '.[].number' 2>/dev/null || true)"
+          for n in $pr_numbers; do
+            if ! gh api "repos/$GITHUB_REPOSITORY/pulls/$n/files?per_page=100" --paginate --jq '.[].filename' 2>/dev/null | grep -Eq '^(sim|core)/|^Cargo\.(toml|lock)$'; then
+              continue
+            fi
+            if [ "${{ github.event_name }}" = "pull_request" ] && [ "$n" = "${{ github.event.pull_request.number }}" ]; then
+              pr_in_site=true
+            fi
+            entries="$entries
+          $(jq -cn --arg name "pr-$n" --argjson n "$n" \
+                    --arg url "${BASE_PATH}${n}/" \
+            '{name:$name, ref:("refs/pull/\($n)/head"), dir:($n|tostring), public_url:$url}')"
+          done
+
+          matrix="$(printf '%s\n' "$entries" | jq -sc '{include: .}')"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "pr_in_site=$pr_in_site" >> "$GITHUB_OUTPUT"
+          echo "Site map: $matrix (triggering PR on it: $pr_in_site)"
+
+  # One build per site-map entry, in parallel. Each builds the simulator and
+  # uploads its slice as an artifact rooted at `_site`, so previews land in
+  # `_site/<PR_NUM>/` and the main build at the artifact root.
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Checkout ${{ matrix.name }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.ref }}
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      # Per-entry caches so repeated builds (matrix collisions would hurt here)
+      # are quick while each entry keeps its own state.
+      - name: Cache Rust build state
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.name }}
+
+      - name: Install trunk
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+
+      - name: Build simulator
+        run: |
+          if [ -z "${{ matrix.dir }}" ]; then
+            # Main entry: the root of the site.
             cd sim
-            trunk build --release --public-url "${BASE_PATH}${PR_NUM}/"
-            cd ..
-            mkdir -p "_site/${PR_NUM}"
-            cp -r sim/dist/* "_site/${PR_NUM}/"
-            test -f "_site/${PR_NUM}/styles.css" || cp sim/styles.css "_site/${PR_NUM}/styles.css"
-            touch "_site/${PR_NUM}/.nojekyll"
-          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            cd sim
-            trunk build --release --public-url "${BASE_PATH}"
+            trunk build --release --public-url "${{ matrix.public_url }}"
             cd ..
             mkdir -p _site
             cp -r sim/dist/* _site/
@@ -65,18 +128,29 @@ jobs:
             # Skip Jekyll processing on GitHub Pages (protects wasm/js/css assets).
             touch _site/.nojekyll
           else
-            echo "No build action for this event"
-            exit 0
+            # Preview entry: the PR's directory on the site.
+            cd sim
+            trunk build --release --public-url "${{ matrix.public_url }}"
+            cd ..
+            mkdir -p "_site/${{ matrix.dir }}"
+            cp -r sim/dist/* "_site/${{ matrix.dir }}/"
+            find sim/dist -type f | sort
+            test -f "_site/${{ matrix.dir }}/styles.css" || cp sim/styles.css "_site/${{ matrix.dir }}/styles.css"
+            touch "_site/${{ matrix.dir }}/.nojekyll"
           fi
 
-      - name: Upload Pages artifact
-        if: github.event_name != 'pull_request' || github.event.action != 'closed'
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
         with:
-          path: _site
+          name: site-${{ matrix.name }}
+          path: _site/
+          if-no-files-found: error
+          retention-days: 1
 
+  # Assemble all slices into one artifact and deploy the complete site. This
+  # replaces the whole Pages deployment — which is exactly why every deploy
+  # has to carry main *and* all open previews.
   deploy:
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
     needs: build
     runs-on: ubuntu-latest
     environment:
@@ -85,13 +159,28 @@ jobs:
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Assemble the site (merge all site-* artifacts)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: site-*
+          merge-multiple: true
+          path: _site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
 
   comment:
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
-    needs: [build, deploy]
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action != 'closed' &&
+      needs.prepare.outputs.pr_in_site == 'true'
+    needs: [prepare, build, deploy]
     runs-on: ubuntu-latest
     steps:
       - name: Find existing comment
@@ -108,7 +197,7 @@ jobs:
           BASE="${{ needs.deploy.outputs.page_url }}"
           # Ensure trailing slash handling
           PREV="${BASE%/}/${{ github.event.pull_request.number }}"
-          echo "prev=$PREV" >> $GITHUB_OUTPUT
+          echo "prev=$PREV" >> "$GITHUB_OUTPUT"
 
       - name: Create or update comment
         uses: peter-evans/create-or-update-comment@v4
@@ -120,59 +209,11 @@ jobs:
             Simulator preview deployed: [${{ steps.url.outputs.prev }}](${{ steps.url.outputs.prev }})
           edit-mode: replace
 
-  cleanup:
+  close-comment:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    needs: [build, deploy]
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-      contents: read
-      pull-requests: write
-    concurrency:
-      group: pages-main
-      cancel-in-progress: false
     steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Install trunk
-        uses: taiki-e/install-action@v2
-        with:
-          tool: trunk
-
-      # deploy-pages replaces the whole artifact, so rebuilding from main
-      # (without the closed PR's preview) removes the stale /<PR_NUM>/ directory.
-      - name: Rebuild site from main
-        run: |
-          BASE_PATH="/${GITHUB_REPOSITORY#*/}"
-          if [ "$BASE_PATH" = "/${GITHUB_REPOSITORY%/*}.github.io" ]; then
-            BASE_PATH=""
-          fi
-          BASE_PATH="${BASE_PATH}/"
-          cd sim
-          trunk build --release --public-url "${BASE_PATH}"
-          cd ..
-          mkdir -p _site
-          cp -r sim/dist/* _site/
-          find sim/dist -type f | sort
-          test -f _site/styles.css || cp sim/styles.css _site/styles.css
-          touch _site/.nojekyll
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
-
       - name: Find existing comment
         id: fc
         uses: peter-evans/find-comment@v3
@@ -181,7 +222,12 @@ jobs:
           comment-author: 'github-actions[bot]'
           body-includes: '<!-- sim-preview -->'
 
+      - name: Skip when no preview comment exists
+        if: steps.fc.outputs.comment-id == ''
+        run: echo "No preview comment to update."
+
       - name: Update comment
+        if: steps.fc.outputs.comment-id != ''
         uses: peter-evans/create-or-update-comment@v4
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
