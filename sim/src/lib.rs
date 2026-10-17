@@ -6,6 +6,7 @@
 //! talks to.
 
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 use wasm_bindgen::prelude::*;
@@ -24,6 +25,13 @@ const STEP_INTERVAL_US: u64 = 1_000_000 / 60;
 /// death when the tab was backgrounded.
 const MAX_STEPS_PER_TICK: u32 = 16;
 
+/// Chat-log ring buffer size. Older lines are dropped when it overflows.
+const MESSAGE_LOG_MAX: usize = 200;
+
+/// Maximum inbound chat text length (characters), matching the player's
+/// line buffer.
+const INBOUND_TEXT_MAX_CHARS: usize = 60;
+
 /// State shared between the platform (seen by the core) and the `Sim` handle
 /// (driven by JavaScript).
 struct Shared {
@@ -34,6 +42,13 @@ struct Shared {
     active_led: bool,
     /// RGB, three bytes per LED, in strip order (strip 0 first).
     frame: Vec<u8>,
+    /// Chat log shown in the UI, oldest first (ring buffer).
+    messages: VecDeque<String>,
+    /// Bytes written by the core since the last line break (e.g. a show
+    /// announcement split into two `usb_write` calls).
+    out_pending: Vec<u8>,
+    /// Queued inbound chat text, to be drained by `usb_read`.
+    inbound: VecDeque<String>,
 }
 
 impl Shared {
@@ -45,7 +60,62 @@ impl Shared {
             auto_led: false,
             active_led: false,
             frame: vec![0u8; NUM_LED * 3],
+            messages: VecDeque::new(),
+            out_pending: Vec::new(),
+            inbound: VecDeque::new(),
         }
+    }
+
+    /// Append written bytes to the out buffer; newline-terminated lines land
+    /// in the message log, one `String` per line.
+    fn push_out(&mut self, data: &[u8]) {
+        for &byte in data {
+            if byte == b'\n' {
+                let line = String::from_utf8_lossy(&self.out_pending).into_owned();
+                if !line.is_empty() {
+                    self.push_message(line);
+                }
+                self.out_pending.clear();
+            } else {
+                self.out_pending.push(byte);
+            }
+        }
+    }
+
+    fn push_message(&mut self, line: String) {
+        if self.messages.len() == MESSAGE_LOG_MAX {
+            self.messages.pop_front();
+        }
+        self.messages.push_back(line);
+    }
+
+    /// Serve at most `buf.len()` bytes out of the inbound chat queue, feeding
+    /// the CDC read side the way real hardware would.
+    fn pop_inbound(&mut self, buf: &mut [u8]) -> usize {
+        let mut count = 0;
+        while let Some(front) = self.inbound.front_mut() {
+            if count == buf.len() {
+                break;
+            }
+            let remaining = front.as_bytes();
+            let mut take = remaining.len().min(buf.len() - count);
+            if take == 0 {
+                break;
+            }
+            // Never hand over a partial UTF-8 character.
+            while !front.is_char_boundary(take) {
+                take -= 1;
+            }
+            buf[count..count + take].copy_from_slice(&remaining[..take]);
+            count += take;
+            if take == remaining.len() {
+                self.inbound.pop_front();
+            } else {
+                front.drain(..take);
+                break; // no room for another char
+            }
+        }
+        count
     }
 }
 
@@ -95,6 +165,20 @@ impl Platform for SimPlatform {
             StatusLedId::Auto => shared.auto_led = on,
             StatusLedId::Active => shared.active_led = on,
         }
+    }
+
+    fn usb_poll(&mut self) {
+        // A no-op; the virtual CDC has no stack to service.
+    }
+
+    fn usb_write(&mut self, data: &[u8]) -> usize {
+        let mut shared = self.shared.borrow_mut();
+        shared.push_out(data);
+        data.len()
+    }
+
+    fn usb_read(&mut self, buf: &mut [u8]) -> usize {
+        self.shared.borrow_mut().pop_inbound(buf)
     }
 }
 
@@ -239,6 +323,28 @@ impl Sim {
     pub fn active_led(&self) -> bool {
         self.shared.borrow().active_led
     }
+
+    /// The chat log for the UI, oldest message first.
+    ///
+    /// The core's `usb_write` payloads (show announcements, echoed chat) land
+    /// here, one `String` per newline-terminated line.
+    pub fn messages(&self) -> Vec<String> {
+        self.shared.borrow().messages.iter().cloned().collect()
+    }
+
+    /// Queue chat text for the firmware. The CDC line framing (a `\n`) is
+    /// appended here; the text is drained by the platform's `usb_read` during
+    /// the following `tick`s.
+    pub fn send(&mut self, text: String) {
+        let mut text = text;
+        if text.chars().count() > INBOUND_TEXT_MAX_CHARS {
+            text = text.chars().take(INBOUND_TEXT_MAX_CHARS).collect();
+        }
+        if !text.ends_with('\n') {
+            text.push('\n');
+        }
+        self.shared.borrow_mut().inbound.push_back(text);
+    }
 }
 
 impl Default for Sim {
@@ -256,6 +362,9 @@ mod tests {
     /// Turn auto-advance off with a long press so tests can inspect a single
     /// show without the 60 s timer moving on.
     fn disable_auto_advance(sim: &mut Sim, t: &mut f64) {
+        // The helper is written in real-time frames; run at 1× so 70 frames
+        // exceed the 1 s long-press window.
+        sim.set_speed(1.0);
         sim.press_button("advance", true);
         for _ in 0..70 {
             *t += FRAME_MS;
@@ -297,8 +406,10 @@ mod tests {
         let mut t = 0.0;
         disable_auto_advance(&mut sim, &mut t);
 
-        // Show index 9 is "Stars (Esperanto)"; it fills the sky immediately.
-        sim.select_show(9);
+        // "Stars (Esperanto)" fills the sky immediately; look it up by name
+        // so the test survives playlist reordering.
+        let index = sim.show_names().iter().position(|n| n.contains("Esperanto")).unwrap();
+        sim.select_show(index);
         t += FRAME_MS;
         sim.tick(t);
         assert!(
@@ -358,5 +469,47 @@ mod tests {
         t += FRAME_MS;
         sim.tick(t);
         assert_eq!(sim.speed(), 2.0);
+    }
+
+    #[test]
+    fn show_announcements_land_in_the_message_log() {
+        let mut sim = Sim::new();
+        let mut t = 0.0;
+        disable_auto_advance(&mut sim, &mut t);
+
+        // The initial show is announced as soon as the player is created.
+        let names = sim.show_names();
+        let messages = sim.messages();
+        assert_eq!(messages.first().map(String::as_str), Some(&*names[0]).as_deref());
+
+        // A short press switches shows and announces the next one.
+        sim.press_button("advance", true);
+        t += FRAME_MS;
+        sim.tick(t);
+        sim.press_button("advance", false);
+        t += FRAME_MS;
+        sim.tick(t);
+
+        let messages = sim.messages();
+        assert_eq!(messages.last().map(String::as_str), Some(&*names[1]).as_deref());
+    }
+
+    #[test]
+    fn chat_message_is_echoed_back() {
+        let mut sim = Sim::new();
+        let mut t = 0.0;
+        disable_auto_advance(&mut sim, &mut t);
+
+        sim.send("hello".to_string());
+        t += FRAME_MS;
+        sim.tick(t);
+        t += FRAME_MS;
+        sim.tick(t);
+
+        assert!(
+            sim.messages().iter().any(|m| m == "hello"),
+            "the echoed chat line should appear in the log: {:?}",
+            sim.messages()
+        );
     }
 }

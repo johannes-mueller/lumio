@@ -58,6 +58,25 @@
           <button id="btn-advance" class="ctrl" type="button">Advance</button>
           <button id="btn-action" class="ctrl" type="button">Action</button>
         </div>
+
+        <hr />
+
+        <h2>Messages</h2>
+        <p class="hint">
+          Chat between the web page and the firmware over virtual USB. Show
+          transitions are announced here, and anything you send is echoed
+          back once it has been received.
+        </p>
+        <div id="chat" aria-live="polite"></div>
+        <form id="chat-form" autocomplete="off">
+          <input
+            id="chat-input"
+            type="text"
+            placeholder="Type a message…"
+            aria-label="Chat message"
+          />
+          <button id="chat-send" type="submit">Send</button>
+        </form>
       </aside>
     </main>
 

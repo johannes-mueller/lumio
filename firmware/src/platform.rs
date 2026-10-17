@@ -21,6 +21,8 @@ const BAUD_RATE:  u32 = 8_000_000u32;
 
 use lumio_core::platform::{ButtonId, Micros, Platform, StatusLedId};
 
+use crate::usb::{UsbDev, UsbSerial};
+
 type ButtonPinAdvance = Pin<gpio::bank0::Gpio21, FunctionSio<SioInput>, PullUp>;
 type ButtonPinAction = Pin<gpio::bank0::Gpio20, FunctionSio<SioInput>, PullUp>;
 type LedPinAuto = Pin<gpio::bank0::Gpio10, FunctionSio<SioOutput>, PullDown>;
@@ -44,6 +46,8 @@ pub struct FirmwarePlatform {
     led_active: LedPinActive,
     spi0: Spi<Enabled, pac::SPI0, Spi0Pinout, 8>,
     spi1: Spi<Enabled, pac::SPI1, Spi1Pinout, 8>,
+    usb_serial: UsbSerial,
+    usb_dev: UsbDev,
 }
 
 impl FirmwarePlatform {
@@ -66,6 +70,13 @@ impl FirmwarePlatform {
         )
         .ok()
         .unwrap();
+
+        // Take the USB peripherals before they are consumed by the other
+        // peripherals below. `RESETS` is only borrowed, so the bus allocator
+        // below gets it after the timer/pins are set up, which is also the
+        // ordering of the original firmware.
+        let usbctrl_regs = pac.USBCTRL_REGS;
+        let usbctrl_dpram = pac.USBCTRL_DPRAM;
 
         let pins = Pins::new(
             pac.IO_BANK0,
@@ -99,15 +110,24 @@ impl FirmwarePlatform {
             MODE_0,
         );
 
+        // `clocks.usb_clock` moves out here, after the last whole-`clocks`
+        // borrow (`Timer::new`).
+        let system_freq = clocks.system_clock.freq().to_Hz();
+        let usb_clock = clocks.usb_clock;
+        let (usb_serial, usb_dev) =
+            crate::usb::init(usbctrl_regs, usbctrl_dpram, usb_clock, &mut pac.RESETS);
+
         FirmwarePlatform {
             timer,
-            delay: cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz()),
+            delay: cortex_m::delay::Delay::new(core.SYST, system_freq),
             button_advance,
             button_action,
             led_auto,
             led_active,
             spi0,
             spi1,
+            usb_serial,
+            usb_dev,
         }
     }
 }
@@ -150,5 +170,22 @@ impl Platform for FirmwarePlatform {
                 }
             }
         }
+    }
+
+    fn usb_poll(&mut self) {
+        // Servicing the USB stack at the 1/60 s player cadence is enough to
+        // keep the enumeration and both endpoints alive.
+        self.usb_dev.poll(&mut [&mut self.usb_serial]);
+    }
+
+    fn usb_write(&mut self, data: &[u8]) -> usize {
+        // Like the original firmware: a single buffered `write` call. The
+        // CDC buffers hold a frame's worth of bytes, which is plenty for
+        // `"show\n"` lines and chat echoes.
+        self.usb_serial.write(data).unwrap_or(0)
+    }
+
+    fn usb_read(&mut self, buf: &mut [u8]) -> usize {
+        self.usb_serial.read(buf).unwrap_or(0)
     }
 }

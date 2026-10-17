@@ -15,6 +15,7 @@ use lumio_core::interface::Interface;
 use lumio_core::player::Player;
 
 mod platform;
+mod usb;
 
 #[entry]
 fn main() -> ! {

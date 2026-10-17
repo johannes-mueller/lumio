@@ -157,6 +157,55 @@ hr {
   margin: 1rem 0;
 }
 
+/* Chat pane ---------------------------------------------------------------- */
+
+#chat {
+  height: 10rem;
+  overflow-y: auto;
+  background: #0d1116;
+  border: 1px solid #2a333f;
+  border-radius: 6px;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+#chat .message {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0.1rem 0 0.1rem 0.5rem;
+  border-left: 2px solid #2f3b49;
+}
+
+#chat .empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+#chat-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+#chat-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem;
+  background: #0d1116;
+  color: var(--fg);
+  border: 1px solid #2a333f;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+#chat-send {
+  flex: 0 0 auto;
+}
+
 @media (max-width: 760px) {
   .layout {
     flex-direction: column;
