@@ -13,7 +13,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
   cancel-in-progress: true
 
 jobs:
@@ -35,24 +35,35 @@ jobs:
 
       - name: Build simulator
         run: |
-          mkdir -p _site
+          # Project Pages sites are served under /<repo-name>/; user/org Pages
+          # repos (<owner>.github.io) are served from the root.
+          BASE_PATH="/${GITHUB_REPOSITORY#*/}"
+          if [ "$BASE_PATH" = "/${GITHUB_REPOSITORY%/*}.github.io" ]; then
+            BASE_PATH=""
+          fi
+          BASE_PATH="${BASE_PATH}/"
           if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" != "closed" ]; then
             PR_NUM="${{ github.event.pull_request.number }}"
-            PUBLIC_URL="/sim/previews/${PR_NUM}"
             cd sim
-            trunk build --release --public-url "${PUBLIC_URL}/"
+            trunk build --release --public-url "${BASE_PATH}${PR_NUM}/"
             cd ..
-            mkdir -p "_site/sim/previews/${PR_NUM}"
-            cp -r sim/dist/* "_site/sim/previews/${PR_NUM}/"
+            mkdir -p "_site/${PR_NUM}"
+            cp -r sim/dist/* "_site/${PR_NUM}/"
+            test -f "_site/${PR_NUM}/styles.css" || cp sim/styles.css "_site/${PR_NUM}/styles.css"
+            touch "_site/${PR_NUM}/.nojekyll"
           elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            PUBLIC_URL="/sim"
             cd sim
-            trunk build --release --public-url "${PUBLIC_URL}/"
+            trunk build --release --public-url "${BASE_PATH}"
             cd ..
-            mkdir -p "_site/sim"
-            cp -r sim/dist/* "_site/sim/"
-            mkdir -p "_site"
-            cp README.md "_site/index.md" 2>/dev/null || true
+            mkdir -p _site
+            cp -r sim/dist/* _site/
+            # Diagnostic: shows exactly what trunk emitted (check this in CI logs).
+            find sim/dist -type f | sort
+            # Defensive: some trunk versions rewrite the CSS link but skip copying
+            # the plain-CSS asset into dist.
+            test -f _site/styles.css || cp sim/styles.css _site/styles.css
+            # Skip Jekyll processing on GitHub Pages (protects wasm/js/css assets).
+            touch _site/.nojekyll
           else
             echo "No build action for this event"
             exit 0
@@ -96,7 +107,7 @@ jobs:
         run: |
           BASE="${{ needs.deploy.outputs.page_url }}"
           # Ensure trailing slash handling
-          PREV="${BASE%/}/sim/previews/${{ github.event.pull_request.number }}"
+          PREV="${BASE%/}/${{ github.event.pull_request.number }}"
           echo "prev=$PREV" >> $GITHUB_OUTPUT
 
       - name: Create or update comment
@@ -114,21 +125,62 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pages: write
+      id-token: write
       contents: read
       pull-requests: write
+    concurrency:
+      group: pages-main
+      cancel-in-progress: false
     steps:
-      # We cannot easily delete a specific subpath from a GitHub Pages deployment when using the deploy-pages action
-      # without rebuilding the full site. The simplest approach is to rebuild the site without this preview
-      # and redeploy; but that requires having the full site state. Alternatively, leave it.
-      # But requirement says "remove the preview". As a pragmatic approach for a repo using GitHub Pages
-      # with actions/deploy-pages, we note this - but better to document. However, let us handle by
-      # skipping deployment and posting a comment.
-      - name: Post cleanup notice
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install trunk
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+
+      # deploy-pages replaces the whole artifact, so rebuilding from main
+      # (without the closed PR's preview) removes the stale /<PR_NUM>/ directory.
+      - name: Rebuild site from main
+        run: |
+          BASE_PATH="/${GITHUB_REPOSITORY#*/}"
+          if [ "$BASE_PATH" = "/${GITHUB_REPOSITORY%/*}.github.io" ]; then
+            BASE_PATH=""
+          fi
+          BASE_PATH="${BASE_PATH}/"
+          cd sim
+          trunk build --release --public-url "${BASE_PATH}"
+          cd ..
+          mkdir -p _site
+          cp -r sim/dist/* _site/
+          find sim/dist -type f | sort
+          test -f _site/styles.css || cp sim/styles.css _site/styles.css
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+
+      - name: Find existing comment
+        id: fc
         uses: peter-evans/find-comment@v3
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: 'github-actions[bot]'
           body-includes: '<!-- sim-preview -->'
+
       - name: Update comment
         uses: peter-evans/create-or-update-comment@v4
         with:
