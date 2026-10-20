@@ -2,6 +2,14 @@
 resolver = "2"
 members = ["core", "firmware", "sim"]
 
+# `lumio-firmware` is bare-metal code for the RP2040.  It needs a `none`
+# target (thumbv6m-none-eabi) for its panic handler, its linker scripts and
+# the RP2040 peripherals, so it cannot be compiled for the host.  Leaving it
+# out of the default members keeps `cargo build` / `cargo check` / `cargo test`
+# in the repository root working; the firmware is built explicitly with
+# `cargo firmware` (see `.cargo/config.toml`).
+default-members = ["core", "sim"]
+
 [workspace.package]
 edition = "2021"
 version = "0.1.0"
