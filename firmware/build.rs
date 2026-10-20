@@ -14,6 +14,21 @@ use std::io::Write;
 use std::path::PathBuf;
 
 fn main() {
+    // This crate is bare-metal firmware: it needs a `none` target (e.g.
+    // thumbv6m-none-eabi) for the panic handler, the linker scripts and the
+    // RP2040 peripherals.  Compiling it for the host cannot work, and the
+    // resulting rustc errors ("`#[panic_handler]` function required", "not
+    // supported without std") are hard to make sense of, so stop here with
+    // a message that says what to do instead.
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if target_os != "none" {
+        panic!(
+            "lumio-firmware only builds for a bare-metal target.\n\
+             Use `cargo firmware` \
+             (cargo build -p lumio-firmware --target thumbv6m-none-eabi)."
+        );
+    }
+
     // Put `memory.x` in our output directory and ensure it's
     // on the linker search path.
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
