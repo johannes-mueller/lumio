@@ -62,16 +62,23 @@ The project is a Cargo workspace:
 `lumio-core` talks to the outside world only through the `Platform` trait, so
 the exact same show code runs on the microcontroller and in the browser.
 
-Build the firmware (from the repository root):
+The firmware is bare-metal code for the RP2040, so it can only be compiled for
+a `none` target.  It is therefore not part of the workspace's default members:
+a plain `cargo build` in the repository root builds `lumio-core` and
+`lumio-sim` for the host, while the firmware is built explicitly:
 
 ```sh
-cargo firmware           # debug build for thumbv6m-none-eabi
-cargo firmware-release   # release build
+cargo build               # host build of lumio-core + lumio-sim
+cargo test                # runs the simulator's unit tests
+cargo firmware            # debug build for thumbv6m-none-eabi
+cargo firmware-release    # release build
 ```
 
-These are aliases defined in `.cargo/config.toml`; they expand to
-`cargo build -p lumio-firmware --target thumbv6m-none-eabi`. Flashing via the
-configured runner:
+`cargo firmware` and `cargo firmware-release` are aliases defined in
+`.cargo/config.toml`; they expand to
+`cargo build -p lumio-firmware --target thumbv6m-none-eabi`.  Building the
+firmware for the host fails on purpose with a hint to use these aliases.
+Flashing via the configured runner:
 
 ```sh
 cargo flash              # cargo run -p lumio-firmware --target thumbv6m-none-eabi

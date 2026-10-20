@@ -142,6 +142,10 @@ Modules live in `core/src/`: `conf`, `math8`, `random`, `led`, `ledstrip`,
 ## Phase 6 — Validation & polish
 
 - [x] `cargo check` for `thumbv6m-none-eabi` **and** `wasm32-unknown-unknown` pass.
+- [x] CI: `.github/workflows/ci.yml` builds the default (host) workspace, runs the
+      unit tests, builds the firmware for `thumbv6m-none-eabi` and the simulator
+      for `wasm32-unknown-unknown`.  (`deploy-sim.yml` only built the wasm app,
+      so the host and firmware builds were unchecked.)
 - [ ] `trunk serve`; manually step through every show via the picker and eyeball each effect.
 - [ ] Verify short-press advance and 1 s long-press auto-advance toggle behave like hardware.
 - [ ] Confirm output is deterministic across reloads (fixed RNG seeds).
@@ -223,6 +227,7 @@ simulator's chat window (below) can both display and send messages.
 - [x] `power_test.rs` moved to `core/src/power_test.rs` but stays undeclared, so it is not compiled and not in the playlist.
 - [x] **Trunk install needed a workaround:** `trunk` 0.21.14 pulls `libdeflate-sys`, whose C sources use the GCC target attribute `no-evex512`, which this toolchain rejects. Installing with `CFLAGS="-D__EVEX512__" CXXFLAGS="-D__EVEX512__"` makes it build. Re-check if this is still required after a toolchain upgrade.
 - [x] **`thumbv6m` builds needed the 1.86 toolchain at one point:** rustc ≥ 1.90 removed the `-C inline-threshold` rustflag. Fixed by switching the flag in `.cargo/config.toml` to `-Cllvm-args=--inline-threshold=5` (LLVM's own spelling), so `cargo build --target thumbv6m-none-eabi` works on the default stable toolchain again.
+- [x] **The firmware cannot be built for the host:** `lumio-firmware` is bare-metal code, so it needs a `none` target for its panic handler and linker scripts. Since the workspace has no default target (setting one would drag the wasm simulator along), a plain `cargo build` in the repository root used to fail with "`#[panic_handler]` function required, but not found". The firmware is now excluded from the workspace's `default-members` (so `cargo build` / `cargo test` cover `lumio-core` + `lumio-sim`), it is built with `cargo firmware`, and `firmware/build.rs` rejects host builds with a message pointing at that alias.
 
 ## Later / nice-to-have
 
