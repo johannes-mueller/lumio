@@ -1,0 +1,50 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Checks every build of the workspace:
+#   * the default (host) build of lumio-core + lumio-sim,
+#   * the unit tests of the simulator,
+#   * the bare-metal firmware for the RP2040,
+#   * the simulator library for WebAssembly.
+# The simulator deployment (see deploy-sim.yml) only builds the wasm app, so
+# the host and firmware builds need a job of their own.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv6m-none-eabi, wasm32-unknown-unknown
+
+      - name: Cache Rust build state
+        uses: Swatinem/rust-cache@v2
+
+      # The firmware links with flip-link, see .cargo/config.toml.
+      - name: Install flip-link
+        uses: taiki-e/install-action@v2
+        with:
+          tool: flip-link
+
+      - name: Build workspace
+        run: cargo build
+
+      - name: Run tests
+        run: cargo test
+
+      - name: Build firmware
+        run: cargo build -p lumio-firmware --target thumbv6m-none-eabi
+
+      - name: Build simulator
+        run: cargo build -p lumio-sim --target wasm32-unknown-unknown --release
