@@ -65,7 +65,16 @@ the exact same show code runs on the microcontroller and in the browser.
 The firmware is bare-metal code for the RP2040, so it can only be compiled for
 a `none` target.  It is therefore not part of the workspace's default members:
 a plain `cargo build` in the repository root builds `lumio-core` and
-`lumio-sim` for the host, while the firmware is built explicitly:
+`lumio-sim` for the host, while the firmware is built explicitly.
+
+Prerequisites (once):
+
+```sh
+cargo install flip-link elf2uf2-rs --locked
+```
+
+The Rust toolchain and compilation targets are pinned in
+`rust-toolchain.toml`; `rustup` installs them automatically.
 
 ```sh
 cargo build               # host build of lumio-core + lumio-sim
@@ -97,9 +106,10 @@ as a star of beams on a `<canvas>`. It does not need a board.
 Prerequisites (once):
 
 ```sh
-rustup target add wasm32-unknown-unknown
 cargo install trunk --locked
 ```
+
+The wasm target is installed through `rust-toolchain.toml`.
 
 > **Note:** if `cargo install trunk` fails while compiling `libdeflate-sys`
 > (`unknown argument no-evex512`), the local toolchain rejects that GCC target
