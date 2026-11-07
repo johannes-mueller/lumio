@@ -81,8 +81,12 @@ firmware for the host fails on purpose with a hint to use these aliases.
 Flashing via the configured runner:
 
 ```sh
-cargo flash              # cargo run -p lumio-firmware --target thumbv6m-none-eabi
+cargo flash              # release build
+cargo flash-debug        # debug build
 ```
+
+Both expand to `cargo run -p lumio-firmware --target thumbv6m-none-eabi`;
+`cargo flash` adds `--release`.
 
 
 ## Simulator

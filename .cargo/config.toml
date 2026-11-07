@@ -36,7 +36,8 @@ rustflags = [
 [alias]
 firmware = "build -p lumio-firmware --target thumbv6m-none-eabi"
 firmware-release = "build -p lumio-firmware --target thumbv6m-none-eabi --release"
-flash = "run -p lumio-firmware --target thumbv6m-none-eabi"
+flash = "run -p lumio-firmware --target thumbv6m-none-eabi --release"
+flash-debug = "run -p lumio-firmware --target thumbv6m-none-eabi"
 
 [env]
 DEFMT_LOG = "debug"
