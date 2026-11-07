@@ -95,9 +95,10 @@ jobs:
           ref: ${{ matrix.ref }}
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
-          targets: wasm32-unknown-unknown
+          cache: false
+          build-warnings: ""
 
       # Per-entry caches so repeated builds (matrix collisions would hurt here)
       # are quick while each entry keeps its own state.
