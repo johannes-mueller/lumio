@@ -11,6 +11,15 @@ rustflags = [
   "-C", "link-arg=-Tlink.x",
   "-C", "link-arg=-Tdefmt.x",
 
+  # Pin the ELF OSABI to System V (the usual value for bare-metal ARM).
+  # Recent LLVM marks objects containing `#[used]` statics (which get the GNU
+  # SHF_GNU_RETAIN section flag) as ELFOSABI_GNU, and lld then copies that ABI
+  # into the executable. Old elf2uf2-rs versions reject such a file with
+  # `Error: "Unrecognized ABI"`. Passing `-m armelf` stops lld from inferring
+  # the ABI from its inputs.
+  "-C", "link-arg=-m",
+  "-C", "link-arg=armelf",
+
   # Code-size optimizations.
   #   trap unreachable can save a lot of space, but requires nightly compiler.
   #   uncomment the next line if you wish to enable it
