@@ -1,6 +1,7 @@
 
 use crate::{
     conf::{STRIP_LENGTH, STRIP_NUM},
+    button::ButtonState,
     interface::{Interface},
     led::{DARK_WHITE, GREEN, RED},
     player::{Show, StepResult},
@@ -113,6 +114,9 @@ impl<const NUM_SNOW_FLAKES: usize> Show for SnowShow<NUM_SNOW_FLAKES> {
             self.wind_count = (self.wind_count + 1) % 3;
             if self.wind_count == 0 {
                 self.wind = make_wind(iface, self.wind);
+            }
+            if iface.button_state() == ButtonState::ShortPressed {
+                self.wind = (self.wind + 20).min(32);
             }
         } else {
             self.wind = 0;
