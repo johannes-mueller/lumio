@@ -10,12 +10,13 @@ use crate::led::{DARK_BLUE, DARK_GREEN, WHITE, YELLOW};
 use crate::fire::Fire;
 use crate::particle_crash::ParticleCrash;
 use crate::planets::PlanetShow;
-use crate::sine::{SeaWave, SineShow};
+use crate::sine_show::{SeaWave, SineShow};
 use crate::snake::SnakeShow;
 use crate::sparks::{FireWorks, SnowSparks, SparkFall};
 use crate::spiral::HueSpiral;
 use crate::stars::Stars;
 use crate::snow::SnowShow;
+use crate::wave_show::WaveShow;
 
 /// Longest inbound USB CDC line the player keeps while waiting for a newline.
 const USB_LINE_MAX: usize = 64;
@@ -184,9 +185,10 @@ macro_rules! define_player {
 define_player! {
     pub struct Player;
     shows: [
+        (waves, WaveShow, WaveShow::new()),
         (planets,          PlanetShow,    PlanetShow::new()),
         (particle_spiral,  ParticleCrash, ParticleCrash::new_spiral()),
-        (sine,             SineShow,      SineShow::new()),
+        (sineshow,         SineShow,      SineShow::new()),
         (snowshow_90,      SnowShow<90>,  SnowShow::<90>::new()),
 
         (fire_green,       Fire,          Fire::new_green()),
