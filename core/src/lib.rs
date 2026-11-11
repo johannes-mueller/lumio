@@ -17,18 +17,20 @@ pub mod platform;
 pub mod player;
 pub mod random;
 pub mod showtimer;
+pub mod sine;
 
 // Shows
 pub mod fire;
 pub mod huewave;
 pub mod particle_crash;
 pub mod planets;
-pub mod sine;
+pub mod sine_show;
 pub mod snake;
 pub mod sparks;
 pub mod spiral;
 pub mod stars;
 pub mod snow;
+pub mod wave_show;
 
 pub use interface::Interface;
 pub use player::{Player, Show, StepResult};
