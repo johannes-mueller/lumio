@@ -101,7 +101,9 @@ Both expand to `cargo run -p lumio-firmware --target thumbv6m-none-eabi`;
 ## Simulator
 
 The simulator runs the real show code as WebAssembly and draws the 24×60 LEDs
-as a star of beams on a `<canvas>`. It does not need a board.
+as a star of beams on a `<canvas>`. It does not need a board. If a show panics,
+the simulator stops and shows the panic message in a red banner; reload the page
+to restart.
 
 Prerequisites (once):
 

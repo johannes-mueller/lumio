@@ -1,4 +1,4 @@
-import init, { Sim } from "./lumio-sim.js";
+import init, { Sim, panic_message } from "./lumio-sim.js";
 
 // Geometry of the star. All constants are tunable defaults.
 const STRIP_NUM = 24;
@@ -26,9 +26,12 @@ const actionButton = document.getElementById("btn-action");
 const chat = document.getElementById("chat");
 const chatForm = document.getElementById("chat-form");
 const chatInput = document.getElementById("chat-input");
+const chatSend = document.getElementById("chat-send");
+const panicBox = document.getElementById("panic");
 
 // Cache the log key so the pane is only rebuilt when messages change.
 let chatKey = "";
+let crashed = false;
 
 let sim = null;
 let outerRadius = 300;
@@ -139,11 +142,61 @@ function syncChat() {
   }
 }
 
+function reportPanic(error) {
+  if (crashed) return;
+  crashed = true;
+
+  let recorded = "";
+  try {
+    recorded = panic_message() ?? "";
+  } catch {
+    // The wasm module may already be unusable; fall back to the JS error.
+  }
+
+  panicBox.textContent =
+    `Simulator panicked: ${recorded || String(error)}\n` +
+    "Simulation halted. Reload the page to restart.";
+  panicBox.hidden = false;
+
+  for (const control of [
+    showSelect,
+    pauseButton,
+    stepButton,
+    speedInput,
+    gammaInput,
+    advanceButton,
+    actionButton,
+    chatInput,
+    chatSend,
+  ]) {
+    control.disabled = true;
+  }
+
+  console.error(error);
+}
+
+function guard(action) {
+  return (event) => {
+    if (crashed) return;
+    try {
+      action(event);
+    } catch (error) {
+      reportPanic(error);
+    }
+  };
+}
+
 function frameLoop(now) {
-  sim.tick(now);
-  draw();
-  syncHud();
-  syncChat();
+  if (crashed) return;
+  try {
+    sim.tick(now);
+    draw();
+    syncHud();
+    syncChat();
+  } catch (error) {
+    reportPanic(error);
+    return;
+  }
   requestAnimationFrame(frameLoop);
 }
 
@@ -158,18 +211,18 @@ function hold(id, down) {
 }
 
 function bindHold(button, id) {
-  const press = (event) => {
+  const press = guard((event) => {
     event.preventDefault();
     button.classList.add("pressed");
     button.setPointerCapture?.(event.pointerId);
     hold(id, true);
-  };
-  const release = (event) => {
+  });
+  const release = guard((event) => {
     if (!button.classList.contains("pressed")) return;
     event.preventDefault();
     button.classList.remove("pressed");
     hold(id, false);
-  };
+  });
 
   button.addEventListener("pointerdown", press);
   button.addEventListener("pointerup", release);
@@ -185,62 +238,81 @@ function bindHold(button, id) {
 }
 
 async function main() {
-  await init();
-  sim = new Sim();
+  try {
+    await init();
+    sim = new Sim();
 
-  const names = sim.show_names();
-  names.forEach((name, index) => {
-    const option = document.createElement("option");
-    option.value = String(index);
-    option.textContent = name;
-    showSelect.appendChild(option);
-  });
-  showSelect.value = String(sim.current_show());
+    const names = sim.show_names();
+    names.forEach((name, index) => {
+      const option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = name;
+      showSelect.appendChild(option);
+    });
+    showSelect.value = String(sim.current_show());
 
-  gammaInput.value = gamma.toFixed(2);
-  gammaValue.textContent = gamma.toFixed(2);
-
-  showSelect.addEventListener("change", () => {
-    sim.select_show(Number(showSelect.value));
-  });
-
-  pauseButton.addEventListener("click", () => setPaused(!sim.is_paused()));
-
-  stepButton.addEventListener("click", () => {
-    if (sim.is_paused()) {
-      sim.step_frame();
-      draw();
-      syncHud();
-    }
-  });
-
-  speedInput.addEventListener("input", () => {
-    const value = Number(speedInput.value);
-    sim.set_speed(value);
-    speedValue.textContent = `${value.toFixed(2)}×`;
-  });
-
-  gammaInput.addEventListener("input", () => {
-    gamma = Number(gammaInput.value);
+    gammaInput.value = gamma.toFixed(2);
     gammaValue.textContent = gamma.toFixed(2);
-  });
 
-  bindHold(advanceButton, "advance");
-  bindHold(actionButton, "action");
+    showSelect.addEventListener(
+      "change",
+      guard(() => {
+        sim.select_show(Number(showSelect.value));
+      })
+    );
 
-  chatForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const text = chatInput.value.trim();
-    if (text === "") return;
-    sim.send(text);
-    chatInput.value = "";
-    syncChat();
-  });
+    pauseButton.addEventListener(
+      "click",
+      guard(() => setPaused(!sim.is_paused()))
+    );
 
-  resize();
-  window.addEventListener("resize", resize);
+    stepButton.addEventListener(
+      "click",
+      guard(() => {
+        if (sim.is_paused()) {
+          sim.step_frame();
+          draw();
+          syncHud();
+        }
+      })
+    );
 
-  requestAnimationFrame(frameLoop);
+    speedInput.addEventListener(
+      "input",
+      guard(() => {
+        const value = Number(speedInput.value);
+        sim.set_speed(value);
+        speedValue.textContent = `${value.toFixed(2)}×`;
+      })
+    );
+
+    gammaInput.addEventListener("input", () => {
+      gamma = Number(gammaInput.value);
+      gammaValue.textContent = gamma.toFixed(2);
+    });
+
+    bindHold(advanceButton, "advance");
+    bindHold(actionButton, "action");
+
+    chatForm.addEventListener(
+      "submit",
+      guard((event) => {
+        event.preventDefault();
+        const text = chatInput.value.trim();
+        if (text === "") return;
+        sim.send(text);
+        chatInput.value = "";
+        syncChat();
+      })
+    );
+
+    resize();
+    window.addEventListener("resize", resize);
+
+    requestAnimationFrame(frameLoop);
+  } catch (error) {
+    reportPanic(error);
+  }
 }
 
 main();

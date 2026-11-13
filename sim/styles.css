@@ -66,6 +66,28 @@ body {
   margin: 0.25rem 0 0.75rem;
 }
 
+.panic {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 0.85rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #ff5c5c;
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: #2a1215;
+  color: #ffd7d7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.panic[hidden] {
+  display: none;
+}
+
 .field {
   display: flex;
   flex-direction: column;

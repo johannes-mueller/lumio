@@ -7,7 +7,9 @@
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::panic::{self, PanicHookInfo};
 use std::rc::Rc;
+use std::sync::Once;
 
 use wasm_bindgen::prelude::*;
 
@@ -31,6 +33,50 @@ const MESSAGE_LOG_MAX: usize = 200;
 /// Maximum inbound chat text length (characters), matching the player's
 /// line buffer.
 const INBOUND_TEXT_MAX_CHARS: usize = 60;
+
+thread_local! {
+    /// Message recorded by the most recent panic on this thread. The web page
+    /// reads it through [`panic_message`] after catching the wasm trap.
+    static PANIC_MESSAGE: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+/// Install the panic hook that feeds the simulator UI.
+///
+/// On `wasm32-unknown-unknown` panics compile to `panic=abort`: the hook runs
+/// first and then the wasm call traps. Capturing the message here lets the
+/// page show it even though the simulation itself cannot continue.
+fn install_panic_hook() {
+    static INSTALL: Once = Once::new();
+    INSTALL.call_once(|| {
+        let previous = panic::take_hook();
+        panic::set_hook(Box::new(move |info| {
+            record_panic(info);
+            // Keep the default/test-harness behavior (and stderr output) intact.
+            previous(info);
+        }));
+    });
+}
+
+fn record_panic(info: &PanicHookInfo<'_>) {
+    let payload = info.payload();
+    let message = payload
+        .downcast_ref::<&str>()
+        .copied()
+        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("non-string panic payload");
+    let text = match info.location() {
+        Some(location) => format!("{message}\n  at {location}"),
+        None => message.to_string(),
+    };
+
+    // A panic while the hook is already running would abort anyway; avoid
+    // borrowing the slot recursively.
+    let _ = PANIC_MESSAGE.try_with(|slot| {
+        if let Ok(mut slot) = slot.try_borrow_mut() {
+            *slot = Some(text);
+        }
+    });
+}
 
 /// State shared between the platform (seen by the core) and the `Sim` handle
 /// (driven by JavaScript).
@@ -199,6 +245,13 @@ pub struct Sim {
 impl Sim {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Sim {
+        install_panic_hook();
+        let _ = PANIC_MESSAGE.try_with(|slot| {
+            if let Ok(mut slot) = slot.try_borrow_mut() {
+                *slot = None;
+            }
+        });
+
         let shared = Rc::new(RefCell::new(Shared::new()));
 
         // The platform must outlive the interface; leaking it for the lifetime
@@ -351,6 +404,19 @@ impl Default for Sim {
     fn default() -> Self {
         Sim::new()
     }
+}
+
+/// The message recorded by the last panic, if any.
+///
+/// This deliberately reads only the thread-local record, not the simulator
+/// state: after a panic has trapped the wasm call, a [`Shared`] borrow may
+/// still be active and touching it could panic again.
+#[wasm_bindgen]
+pub fn panic_message() -> Option<String> {
+    PANIC_MESSAGE
+        .try_with(|slot| slot.borrow().clone())
+        .ok()
+        .flatten()
 }
 
 #[cfg(test)]
@@ -511,5 +577,18 @@ mod tests {
             "the echoed chat line should appear in the log: {:?}",
             sim.messages()
         );
+    }
+
+    #[test]
+    fn panic_message_is_captured_for_the_ui() {
+        let _sim = Sim::new();
+        assert_eq!(panic_message(), None);
+
+        let result = std::panic::catch_unwind(|| panic!("simulator test panic"));
+        assert!(result.is_err());
+
+        let message = panic_message().expect("the panic hook should record a message");
+        assert!(message.contains("simulator test panic"), "{message}");
+        assert!(message.contains("lib.rs"), "{message}");
     }
 }
