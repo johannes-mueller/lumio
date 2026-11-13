@@ -41,31 +41,3 @@ impl Sine {
         pos
     }
 }
-
-
-pub struct Envelope {
-    speed: isize,
-    decay: isize,
-    state: isize,
-}
-
-impl Envelope {
-    pub fn new(speed: isize) -> Envelope {
-        Envelope { speed, state: i8::MAX as isize, decay: i8::MAX as isize }
-    }
-
-    pub fn reset(&mut self) {
-        self.state = i8::MAX as isize;
-        self.decay = i8::MAX as isize;
-    }
-
-    pub fn process(&mut self, signal: i8) -> i8 {
-        let signal_big = (signal as isize);
-        if self.decay == i8::MIN as isize {
-            return 0;
-        }
-        self.state = scale(self.state, self.decay);
-        self.decay = self.decay - self.speed;
-        scale(signal_big, self.state) as i8
-    }
-}
