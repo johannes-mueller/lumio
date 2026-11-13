@@ -1,9 +1,18 @@
 use crate::{
-    conf::*, interface::Interface, led::{Color, WHITE}, math8::isqrt8, player::{Show, StepResult}
+    conf::*, interface::Interface,
+    led::{Color, WHITE},
+    math8::isqrt8,
+    player::{Show, StepResult},
 };
 
+use libm::{fabsf, sqrtf};
+
 const INTERSTEPS: usize = 10;
-const RESOLUTION: usize = INTERSTEPS * STRIP_LENGTH;
+const RESOLUTION: usize = INTERSTEPS * 2 * STRIP_LENGTH;
+
+pub fn iscale8(a: i8, b: i8) -> i8 {
+    ((a as i16 * b as i16) >> 7) as i8
+}
 
 
 struct ColorDiff {
@@ -29,31 +38,33 @@ impl Position {
 
 const NEUTRAL: ColorDiff = ColorDiff { r: 0, g: 0, b: 0 };
 
+const I8_MIN: i32 = i8::MIN as i32;
+const I8_MAX: i32 = i8::MAX as i32;
+const I16_MIN: i32 = i16::MIN as i32;
+const I16_MAX: i32 = i16::MAX as i32;
+
 
 #[inline(always)]
 pub const fn sat8(value: i32) -> i8 {
-    if value > 127 {
-        127
-    } else if value < -127 {
-        -127
+    if value > I8_MAX {
+        i8::MAX
+    } else if value < I8_MIN {
+        i8::MIN
     } else {
         value as i8
     }
 }
 
-/// int32 -> Q15, clamped to [-32768, 32767].
 #[inline(always)]
 pub const fn sat15(value: i32) -> i32 {
-    if value > 32767 {
-        32767
-    } else if value < -32768 {
-        -32768
+    if value > I16_MAX {
+        I16_MAX
+    } else if value < I16_MIN {
+        I16_MIN
     } else {
         value
     }
 }
-
-pub const Q15_MAX: i32 = 32767;
 
 // ===========================================================================
 // 2. Wave8 -- leapfrog, sigma = 1
@@ -82,16 +93,22 @@ pub struct Wave8<const N: usize> {
     /// previous time level u^(n-1), supplies the u_tt term
     field_before: [i8; N],
     boundary: Boundary,
+    decay: i32,
     steps_done: u32,
+    source_overlay_past: i8,
+    excite_position: usize,
 }
 
 impl<const N: usize> Wave8<N> {
-    pub fn new(boundary: Boundary) -> Self {
+    pub fn new(boundary: Boundary, excite_position: usize) -> Self {
         assert!(N >= 3, "Wave8: N >= 3 required");
         Self {
             field_now: [0; N],
             field_before: [0; N],
             boundary,
+            decay: 256,
+            excite_position,
+            source_overlay_past: 0,
             steps_done: 0,
         }
     }
@@ -101,6 +118,7 @@ impl<const N: usize> Wave8<N> {
         self.field_now = [0; N];
         self.field_before = [0; N];
         self.steps_done = 0;
+        self.source_overlay_past = 0;
         self
     }
 
@@ -131,14 +149,39 @@ impl<const N: usize> Wave8<N> {
         self.steps_done
     }
 
-    /// One time step. `left_edge_next` = u(0, t_{n+1}).
-    /// Returns the new time level u^(n+1); do not mutate the slice.
+    pub fn excite(&mut self, excitement: i8) {
+        self.field_now[self.excite_position] = excitement;
+    }
+
     #[inline]
-    pub fn step(&mut self, left_edge_next: i8) -> &[i8; N] {
+    pub fn step_overlay(&mut self, excitement: i8) {
         // Save old-level edge values before anything is overwritten:
         // right_edge_before = u[N-1]^n, inner_edge_before = u[N-2]^n
+
+        let node = self.excite_position;
+
+        let plain_field = sat8(self.field_now[node] as i32 - self.source_overlay_past as i32);
+        self.field_now[node] = sat8(plain_field as i32 + excitement as i32);
+
+        self.advance();
+
+        self.field_before[node] = plain_field;
+
+        self.field_now[node] = sat8(self.field_now[node] as i32 + excitement as i32);
+        self.source_overlay_past = excitement;
+    }
+
+    pub fn step(&mut self, excitement: i8) {
+        self.field_now[self.excite_position] = excitement;
+        self.advance();
+    }
+
+    pub fn advance(&mut self) {
         let right_edge_before = self.field_now[N - 1];
-        let inner_edge_before = self.field_now[N - 2];
+        let inner_right_edge_before = self.field_now[N - 2];
+
+        let left_edge_before = self.field_now[0];
+        let inner_left_edge_before = self.field_now[1];
 
         // Walk backwards and cache the old value of u[j] before writing it.
         // Reading an already-overwritten neighbour yields an index error that
@@ -151,6 +194,9 @@ impl<const N: usize> Wave8<N> {
                 - self.field_before[j] as i32; // |new_value_raw| <= 3*127
 
             self.field_before[j] = center_before; // old u^n becomes u^(n-1)
+
+            let new_value_decay = (new_value_raw * self.decay) >> 8;
+            //let new_value_decay = new_value_raw;
             self.field_now[j] = sat8(new_value_raw);
 
             right_neighbour = center_before; // for the next (leftward) j
@@ -158,21 +204,26 @@ impl<const N: usize> Wave8<N> {
         }
 
         // Left edge: Dirichlet condition, i.e. the source.
-        self.field_before[0] = self.field_now[0];
-        self.field_now[0] = left_edge_next;
 
+        //self.field_now[self.excite_position] =  excitement;
         // Right edge: closure per boundary type.
+        self.field_before[0] = left_edge_before;
         self.field_before[N - 1] = right_edge_before;
+        self.field_now[0] = match self.boundary {
+            // r = 0 when sigma = 1: exact, one-sample memory only
+            Boundary::Mur => inner_left_edge_before,
+            // mirror image of the interior node
+            Boundary::Neumann => sat8(2 * inner_left_edge_before as i32 - left_edge_before as i32),
+            Boundary::Dirichlet => 0,
+        };
         self.field_now[N - 1] = match self.boundary {
             // r = 0 when sigma = 1: exact, one-sample memory only
-            Boundary::Mur => inner_edge_before,
+            Boundary::Mur => inner_right_edge_before,
             // mirror image of the interior node
-            Boundary::Neumann => sat8(2 * inner_edge_before as i32 - right_edge_before as i32),
+            Boundary::Neumann => sat8(2 * inner_right_edge_before as i32 - right_edge_before as i32),
             Boundary::Dirichlet => 0,
         };
 
-        self.steps_done += 1;
-        &self.field_now
     }
 }
 
@@ -216,7 +267,7 @@ impl SineOsc {
         let cos_half_angle =
             1.0 - 0.5 * half_angle_sq + half_angle_sq * half_angle_sq / 24.0;
 
-        let initial_cos = (Q15_MAX as f32 * cos_half_angle + 0.5) as i32;
+        let initial_cos = (I16_MAX as f32 * cos_half_angle + 0.5) as i32;
         Self {
             phase_step: (phase_step_f * 32768.0 + 0.5) as i32,
             sin_value: 0,
@@ -361,13 +412,17 @@ impl BellEnv {
         self.exp2()
     }
 
+    pub fn finished(&self) -> bool {
+        self.finished
+    }
+
     /// 2^(log2_envelope / 2^frac_bits) in Q15, log2_envelope <= 0.
     #[inline(always)]
     fn exp2(&self) -> i32 {
         // Arithmetic shift = floor, so the fraction below is always in [0,1)
         let exponent_int = self.log2_envelope >> self.frac_bits;
         if exponent_int >= 0 {
-            return Q15_MAX; // exponent >= 0 means envelope >= 1: saturate
+            return I16_MAX; // exponent >= 0 means envelope >= 1: saturate
         }
         if exponent_int < -15 {
             return 0;
@@ -439,20 +494,25 @@ impl Exciter {
         // Q15 * Q15 -> Q15, then Q15 -> int8 with rounding
         sat8((((carrier_value * envelope_value) >> 15) + 128) >> 8)
     }
+
+    pub fn finished(&self) -> bool {
+        self.envelope.finished()
+    }
 }
 
 pub struct ExciterWaveShow {
     steps_per_frame: usize,
     exciter: Exciter,
-    wave: Wave8<RESOLUTION>
+    wave: Wave8<RESOLUTION>,
+
+    position: usize,
 }
 
 impl ExciterWaveShow {
-    pub fn new(
-    ) -> ExciterWaveShow {
-        let steps_per_frame: usize = 1;
-        let lam_led: f32 = 4.5;
-        let frequency: f32 = 2.0;
+    pub fn new() -> ExciterWaveShow {
+        let steps_per_frame: usize = 10;
+        let lam_led: f32 = 5.;
+        let frequency: f32 = 2.0 as f32;
         let omega: f32 = 10.0;
         let sigma: f32 = 2.0;
 
@@ -460,7 +520,33 @@ impl ExciterWaveShow {
         let freq_steps = INTERSTEPS as f32 * lam_led * frequency;
         let exciter = Exciter::new(freq_steps, omega, sigma);
 
-        ExciterWaveShow { exciter, wave: Wave8::new(Boundary::Mur), steps_per_frame }
+        ExciterWaveShow {
+            position: 0,
+            exciter,
+            wave: Wave8::new(Boundary::Dirichlet, 0),
+            steps_per_frame
+        }
+    }
+
+    fn distance(&self, led: usize) -> usize {
+        let alt = (led % STRIP_LENGTH) as f32;
+        let strip = (led / STRIP_LENGTH) as f32;
+
+        let p_alt = (self.position % STRIP_LENGTH) as f32;
+        let p_strip = (self.position / STRIP_LENGTH) as f32;
+
+        let d_alt2 =  (alt - p_alt) * (alt - p_alt);
+
+        let half_circle = (STRIP_NUM / 2) as f32;
+        let d_strip = fabsf(strip - p_strip);
+
+        let d_strip2 = if d_strip <= half_circle  {
+            d_strip * d_strip
+        } else {
+            (STRIP_NUM as f32 - d_strip) * (STRIP_NUM as f32 - d_strip)
+        };
+
+        sqrtf(d_alt2 + d_strip2) as usize * INTERSTEPS
     }
 }
 
@@ -475,14 +561,32 @@ impl Show for ExciterWaveShow {
 
     fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
         iface.led_strip().black();
-        let left_edge_next = self.exciter.update();
-        self.wave.step(left_edge_next);
+
+        for _ in 0..self.steps_per_frame {
+            let excitement = self.exciter.update();
+            self.wave.step(excitement);
+        }
 
         let wave_field = self.wave.field();
 
+        // for i in 0..STRIP_LENGTH {
+        //     let field = wave_field[INTERSTEPS*i];
+        //     let intensity = iscale8(field, field) as u8;
+        //     let color = Color {
+        //         r: intensity,
+        //         g: 0, //(self.color_diff[i].g + 127) as u8,
+        //         b: 0, //(self.color_diff[i].b + 127) as u8,
+        //     };
+        //     iface.led_strip().set_led(i as isize, color);
+        // }
+
+
         for i in 0..NUM_LED {
+            let dist = self.distance(i);
+            let field = wave_field[dist];
+            let intensity = iscale8(field, field) as u8;
             let color = Color {
-                r: (wave_field[i*INTERSTEPS] as i16 + 127) as u8,
+                r: intensity,
                 g: 0, //(self.color_diff[i].g + 127) as u8,
                 b: 0, //(self.color_diff[i].b + 127) as u8,
             };
@@ -494,155 +598,3 @@ impl Show for ExciterWaveShow {
         StepResult::Running
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// struct WavePropagator {
-//     curr: [i8; RESOLUTION],
-//     prev: [i8; RESOLUTION],
-
-//     stimulus: Option<i8>
-// }
-
-// impl WavePropagator {
-//     pub fn new() -> WavePropagator {
-//         let curr = core::array::from_fn(|_| 0);
-//         let prev = core::array::from_fn(|_| 0);
-
-//         WavePropagator { curr, prev, stimulus: None }
-//     }
-
-//     pub fn stimulate(&mut self, signal: i8) {
-//         self.stimulus = Some(signal);
-//     }
-
-//     pub fn process(&mut self, buffer: &mut [i8; RESOLUTION]) {
-//         match self.stimulus {
-//             Some(signal) => self.curr[0] = signal,
-//             None => {}
-//         }
-//         self.stimulus = None;
-//         for i in 1..(RESOLUTION-1) {
-//             let prev = self.prev[i] as i16;
-//             let curr = self.curr[i] as i16;
-//             let curr_right = self.curr[i+1] as i16;
-//             let curr_left = self.curr[i-1] as i16;
-//             let next = 2 * curr - prev + (curr_right - 2 * curr + curr_left);
-
-//             buffer[i] = next as i8; //.min(127).max(-127) as i8;
-//         }
-//         buffer[RESOLUTION-1] = self.curr[RESOLUTION-2];
-
-//         for i in 0..RESOLUTION {
-//             self.prev[i] = self.curr[i];
-//             self.curr[i] = buffer[i];
-//         }
-//     }
-// }
-
-
-// pub struct Wave {
-//     sine: Sine,
-//     envelope: Envelope,
-//     hue: f32,
-
-//     position: Position,
-//     propagator: WavePropagator,
-//     val: i8,
-// }
-
-
-// impl Wave {
-//     pub fn new(wave_length: u8, speed: u8, hue: f32) -> Wave {
-//         let wave_length6 = (wave_length as u32) << 6;
-//         let speed6 = (speed as u32) << 3;
-
-//         let frequency = (speed6 / wave_length6) >> 6;
-//         let elastic = (frequency * frequency) as isize;
-
-//         let position = Position::new(0, 0);
-
-//         Wave {
-//             sine: Sine::new(64, 1, 64),
-//             envelope: Envelope::new(64),
-//             hue, position, propagator: WavePropagator::new(), val: 64}
-//     }
-
-//     fn process(&mut self, led_diff: &mut [ColorDiff; NUM_LED], buffer: &mut [i8; RESOLUTION]) {
-//         for _ in 0..10 {
-//             let signal = self.envelope.process(self.sine.process() as i8);
-//             self.propagator.stimulate(signal);
-//             self.propagator.process(buffer);
-//             self.val = 0; //(self.val - 1).max(0);
-
-//         }
-
-//         for i in 0..STRIP_LENGTH {
-//             let pos = self.position.led_pos();
-//             led_diff[pos+i].r = buffer[i * INTERSTEPS] as isize;
-//         }
-//     }
-// }
-
-
-// pub struct WaveShow {
-//     wave: Wave,
-//     color_diff: [ColorDiff; NUM_LED],
-//     buffer: [i8; RESOLUTION],
-// }
-
-// impl WaveShow {
-//     pub fn new() -> WaveShow {
-//         let color_diff = core::array::from_fn(|_| NEUTRAL);
-//         let buffer = core::array::from_fn(|_| 0);
-
-//         WaveShow {wave: Wave::new(6, 2, 1.0), color_diff, buffer}
-//     }
-// }
-
-// impl Show for WaveShow {
-//     fn title(&self) -> &'static str {
-//         "WaveShow"
-//     }
-
-//     fn reset(&mut self, _iface: &mut Interface<'_>) {
-
-//     }
-
-//     fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
-//         iface.led_strip().black();
-//         self.wave.process(&mut self.color_diff, &mut self.buffer);
-
-//         for i in 0..NUM_LED {
-//             let color = Color {
-//                 r: (self.color_diff[i].r * 4 + 64) as u8,
-//                 g: 0, //(self.color_diff[i].g + 127) as u8,
-//                 b: 0, //(self.color_diff[i].b + 127) as u8,
-//             };
-//             iface.led_strip().set_led(i as isize, color);
-//         }
-
-//         iface.write_spi();
-
-//         StepResult::Running
-//     }
-// }
