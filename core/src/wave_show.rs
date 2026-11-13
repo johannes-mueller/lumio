@@ -14,14 +14,13 @@ pub fn iscale8(a: i8, b: i8) -> i8 {
     ((a as i16 * b as i16) >> 7) as i8
 }
 
-
-struct ColorDiff {
-    r: isize,
-    g: isize,
-    b: isize,
+pub struct ColorDiff {
+    r: i16,
+    g: i16,
+    b: i16,
 }
 
-struct Position {
+pub struct Position {
     strip: usize,
     alt: usize,
 }
@@ -500,18 +499,20 @@ impl Exciter {
     }
 }
 
-pub struct ExciterWaveShow {
+pub struct ExciterWave {
     steps_per_frame: usize,
     exciter: Exciter,
     wave: Wave8<RESOLUTION>,
 
-    position: usize,
+    position: Position,
+
+    hue: f32
 }
 
-impl ExciterWaveShow {
-    pub fn new() -> ExciterWaveShow {
-        let steps_per_frame: usize = 10;
-        let lam_led: f32 = 5.;
+impl ExciterWave {
+    pub fn new(position: Position, hue: f32, wave_length: f32) -> ExciterWave {
+        let steps_per_frame: usize = 5;
+        let lam_led: f32 = wave_length;
         let frequency: f32 = 2.0 as f32;
         let omega: f32 = 10.0;
         let sigma: f32 = 2.0;
@@ -520,10 +521,13 @@ impl ExciterWaveShow {
         let freq_steps = INTERSTEPS as f32 * lam_led * frequency;
         let exciter = Exciter::new(freq_steps, omega, sigma);
 
-        ExciterWaveShow {
-            position: 0,
+        let alt = 0;//position.alt;
+
+        ExciterWave {
+            position,
+            hue,
             exciter,
-            wave: Wave8::new(Boundary::Dirichlet, 0),
+            wave: Wave8::new(Boundary::Dirichlet, alt*INTERSTEPS),
             steps_per_frame
         }
     }
@@ -532,10 +536,10 @@ impl ExciterWaveShow {
         let alt = (led % STRIP_LENGTH) as f32;
         let strip = (led / STRIP_LENGTH) as f32;
 
-        let p_alt = (self.position % STRIP_LENGTH) as f32;
-        let p_strip = (self.position / STRIP_LENGTH) as f32;
+        let p_alt = self.position.alt as f32;
+        let p_strip = self.position.strip as f32;
 
-        let d_alt2 =  (alt - p_alt) * (alt - p_alt);
+        let d_alt2 = (alt - p_alt) * (alt - p_alt);
 
         let half_circle = (STRIP_NUM / 2) as f32;
         let d_strip = fabsf(strip - p_strip);
@@ -548,9 +552,57 @@ impl ExciterWaveShow {
 
         sqrtf(d_alt2 + d_strip2) as usize * INTERSTEPS
     }
+
+    pub fn process(&mut self, canvas: &mut [ColorDiff; NUM_LED]) {
+        for _ in 0..self.steps_per_frame {
+            let excitement = self.exciter.update();
+            self.wave.step(excitement);
+        }
+
+        let wave_field = self.wave.field();
+
+        for i in 0..NUM_LED {
+            let dist = self.distance(i);
+            let field = wave_field[dist];
+
+            let value = fabsf(field as f32) / 127.0;
+            let color = Color::from_hsv(self.hue, 1.0, value);
+            let sign = if value >= 0.0 {
+                1
+            } else {
+                -1
+            };
+
+            canvas[i].r = canvas[i].r + sign * color.r as i16;
+            canvas[i].g = canvas[i].g + sign * color.g as i16;
+            canvas[i].b = canvas[i].b + sign * color.b as i16;
+        }
+    }
 }
 
-impl Show for ExciterWaveShow {
+pub struct WaveShow {
+    exciter_waves: [ExciterWave; 3],
+    color_diff: [ColorDiff; NUM_LED],
+}
+
+impl WaveShow {
+    pub fn new() -> Self {
+        let color_diff = core::array::from_fn(|_| ColorDiff {r: 0, g: 0, b: 0});
+
+        let exciter_waves = [
+            ExciterWave::new(Position {strip: 0, alt: 20}, 0.0, 7.5),
+            ExciterWave::new(Position {strip: 15, alt: 50}, 0.33, 12.5),
+            ExciterWave::new(Position {strip: 20, alt: 10}, 0.67, 25.5),
+        ];
+
+        Self {
+            exciter_waves,
+            color_diff
+        }
+    }
+}
+
+impl Show for WaveShow {
     fn title(&self) -> &'static str {
         "WaveShow"
     }
@@ -560,35 +612,27 @@ impl Show for ExciterWaveShow {
     }
 
     fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
-        iface.led_strip().black();
-
-        for _ in 0..self.steps_per_frame {
-            let excitement = self.exciter.update();
-            self.wave.step(excitement);
-        }
-
-        let wave_field = self.wave.field();
-
-        // for i in 0..STRIP_LENGTH {
-        //     let field = wave_field[INTERSTEPS*i];
-        //     let intensity = iscale8(field, field) as u8;
-        //     let color = Color {
-        //         r: intensity,
-        //         g: 0, //(self.color_diff[i].g + 127) as u8,
-        //         b: 0, //(self.color_diff[i].b + 127) as u8,
-        //     };
-        //     iface.led_strip().set_led(i as isize, color);
-        // }
-
 
         for i in 0..NUM_LED {
-            let dist = self.distance(i);
-            let field = wave_field[dist];
-            let intensity = iscale8(field, field) as u8;
+            self.color_diff[i] = NEUTRAL;
+        }
+        for i in 0..3 {
+            self.exciter_waves[i].process(&mut self.color_diff);
+        }
+
+        iface.led_strip().black();
+
+        for i in 0..NUM_LED {
+            let red = sat8(self.color_diff[i].r as i32);
+            let green = sat8(self.color_diff[i].g as i32);
+            let blue = sat8(self.color_diff[i].b as i32);
+            let red_intensity = iscale8(red, red) as u8;
+            let green_intensity = iscale8(green, green) as u8;
+            let blue_intensity = iscale8(blue, blue) as u8;
             let color = Color {
-                r: intensity,
-                g: 0, //(self.color_diff[i].g + 127) as u8,
-                b: 0, //(self.color_diff[i].b + 127) as u8,
+                r: red_intensity,
+                g: green_intensity,
+                b: blue_intensity,
             };
             iface.led_strip().set_led(i as isize, color);
         }
