@@ -1,11 +1,8 @@
 use crate::{
     conf::*, interface::Interface,
-    led::{Color, WHITE},
-    math8::isqrt8,
+    led::Color,
     player::{Show, StepResult},
 };
-
-use libm::{fabsf, sqrtf};
 
 const INTERSTEPS: usize = 10;
 const RESOLUTION: usize = INTERSTEPS * 2 * STRIP_LENGTH;
@@ -506,7 +503,7 @@ pub struct ExciterWave {
 
     position: Position,
 
-    hue: f32
+    color: Color,
 }
 
 impl ExciterWave {
@@ -517,7 +514,6 @@ impl ExciterWave {
         let omega: f32 = 10.0;
         let sigma: f32 = 2.0;
 
-
         let freq_steps = INTERSTEPS as f32 * lam_led * frequency;
         let exciter = Exciter::new(freq_steps, omega, sigma);
 
@@ -525,38 +521,45 @@ impl ExciterWave {
 
         ExciterWave {
             position,
-            hue,
+            color: Color::from_hsv(hue, 1.0, 1.0),
             exciter,
             wave: Wave8::new(Boundary::Dirichlet, alt*INTERSTEPS),
             steps_per_frame
         }
     }
 
+    fn distance_S(&self, led: usize) -> usize {
+        let alt = led % STRIP_LENGTH;
+        (alt as i32 - self.position.alt as i32).abs() as usize * INTERSTEPS
+    }
+
     fn distance(&self, led: usize) -> usize {
-        let alt = (led % STRIP_LENGTH) as f32;
-        let strip = (led / STRIP_LENGTH) as f32;
+        let alt = (led % STRIP_LENGTH) as i16;
+        let strip = (led / STRIP_LENGTH) as i16;
 
-        let p_alt = self.position.alt as f32;
-        let p_strip = self.position.strip as f32;
+        let p_alt = self.position.alt as i16;
+        let p_strip = self.position.strip as i16;
 
-        let d_alt2 = (alt - p_alt) * (alt - p_alt);
+        let d_alt2 = ((alt - p_alt) * (alt - p_alt)) as u16;
 
-        let half_circle = (STRIP_NUM / 2) as f32;
-        let d_strip = fabsf(strip - p_strip);
+        let half_circle = (STRIP_NUM / 2) as u16;
+        let d_strip = (strip - p_strip).abs() as u16;
 
         let d_strip2 = if d_strip <= half_circle  {
-            d_strip * d_strip
+            (d_strip * d_strip) as u16
         } else {
-            (STRIP_NUM as f32 - d_strip) * (STRIP_NUM as f32 - d_strip)
+            ((STRIP_NUM as u16 - d_strip) * (STRIP_NUM as u16 - d_strip))
         };
 
-        sqrtf(d_alt2 + d_strip2) as usize * INTERSTEPS
+        let d = (d_strip2 + d_alt2).isqrt() as usize;
+        d * INTERSTEPS
     }
 
     pub fn process(&mut self, canvas: &mut [ColorDiff; NUM_LED]) {
         for _ in 0..self.steps_per_frame {
             let excitement = self.exciter.update();
             self.wave.step(excitement);
+
         }
 
         let wave_field = self.wave.field();
@@ -565,17 +568,9 @@ impl ExciterWave {
             let dist = self.distance(i);
             let field = wave_field[dist];
 
-            let value = fabsf(field as f32) / 127.0;
-            let color = Color::from_hsv(self.hue, 1.0, value);
-            let sign = if value >= 0.0 {
-                1
-            } else {
-                -1
-            };
-
-            canvas[i].r = canvas[i].r + sign * color.r as i16;
-            canvas[i].g = canvas[i].g + sign * color.g as i16;
-            canvas[i].b = canvas[i].b + sign * color.b as i16;
+            canvas[i].r = canvas[i].r + iscale8((self.color.r >> 1) as i8, field) as i16;
+            canvas[i].g = canvas[i].g + iscale8((self.color.g >> 1) as i8, field) as i16;
+            canvas[i].b = canvas[i].b + iscale8((self.color.b >> 1) as i8, field) as i16;
         }
     }
 }
