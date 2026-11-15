@@ -588,9 +588,9 @@ impl WaveShow {
         let decay = 255;
 
         let exciter_waves = [
-            ExciterWave::new(Position {strip: 0, alt: 20}, 0.0, 7.5, decay),
-            ExciterWave::new(Position {strip: 15, alt: 50}, 0.33, 12.5, decay),
-            ExciterWave::new(Position {strip: 20, alt: 10}, 0.67, 25.5, decay),
+            ExciterWave::new(Position {strip: 0, alt: 10}, 0.0, 30.5, decay),
+            ExciterWave::new(Position {strip: 15, alt: 50}, 0.33, 40.5, decay),
+            ExciterWave::new(Position {strip: 20, alt: 30}, 0.67, 25.5, decay),
         ];
 
         Self {
