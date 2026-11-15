@@ -1,8 +1,52 @@
+use core::fmt::{self, Write as _};
+
 use crate::button::{Button, ButtonState};
 use crate::ledstrip::LEDStrip;
 use crate::platform::{ButtonId, Platform, StatusLedId};
 use crate::random::Random;
 use crate::showtimer::ShowTimer;
+
+/// Size of the stack-allocated USB line buffer owned by [`Interface`]. Enough
+/// for a verbose per-LED debug line plus a newline.
+const USB_TX_LINE: usize = 120;
+
+/// [`core::fmt::Write`] target that appends into the line buffer borrowed from
+/// [`Interface`] and flushes the accumulated bytes to [`Platform::usb_write`]
+/// when dropped.
+///
+/// Obtained via [`Interface::usb_writer`], which lets the standard
+/// `write!`/`writeln!` macros format straight into the USB CDC port:
+///
+/// ```text
+/// writeln!(iface.usb_writer(), "x = {}", x);
+/// ```
+pub struct UsbWriter<'a> {
+    buf: &'a mut [u8],
+    pos: usize,
+    platform: &'a mut dyn Platform,
+}
+
+impl fmt::Write for UsbWriter<'_> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let bytes = s.as_bytes();
+        let room = self.buf.len() - self.pos;
+        let n = bytes.len().min(room);
+        self.buf[self.pos..self.pos + n].copy_from_slice(&bytes[..n]);
+        self.pos += n;
+        if n == bytes.len() {
+            Ok(())
+        } else {
+            // Stop formatting on overflow; the partial line is still flushed.
+            Err(fmt::Error)
+        }
+    }
+}
+
+impl Drop for UsbWriter<'_> {
+    fn drop(&mut self) {
+        let _ = self.platform.usb_write(&self.buf[..self.pos]);
+    }
+}
 
 /// The bridge between the shows and a concrete [`Platform`].
 ///
@@ -17,6 +61,7 @@ pub struct Interface<'p> {
     platform: &'p mut dyn Platform,
     action_state: ButtonState,
     do_next: bool,
+    usb_buf: [u8; USB_TX_LINE],
 }
 
 impl<'p> Interface<'p> {
@@ -30,6 +75,7 @@ impl<'p> Interface<'p> {
             platform,
             action_state: ButtonState::Up,
             do_next: false,
+            usb_buf: [0; USB_TX_LINE],
         }
     }
 
@@ -102,8 +148,59 @@ impl<'p> Interface<'p> {
         self.platform.usb_write(data)
     }
 
+    /// Borrow the internal USB line buffer as a [`core::fmt::Write`] target.
+    /// The bytes formatted into the returned [`UsbWriter`] are flushed to
+    /// [`Platform::usb_write`] when it is dropped, so
+    ///
+    /// ```text
+    /// writeln!(iface.usb_writer(), "x = {}", x);
+    /// ```
+    ///
+    /// sends one newline-terminated line.
+    pub fn usb_writer(&mut self) -> UsbWriter<'_> {
+        UsbWriter {
+            buf: &mut self.usb_buf[..],
+            pos: 0,
+            platform: &mut *self.platform,
+        }
+    }
+
+    /// Format one line and send it over USB CDC, appending a newline. The
+    /// argument is a pre-built [`core::fmt::Arguments`]; the `usb_writeln!`
+    /// macro is the convenient call site:
+    ///
+    /// ```text
+    /// usb_writeln!(iface, "a = {}, b = {}", a, b);
+    /// ```
+    pub fn usb_writeln(&mut self, args: fmt::Arguments<'_>) {
+        let mut writer = self.usb_writer();
+        let _ = writer.write_fmt(args);
+        let _ = writer.write_str("\n");
+    }
+
     /// Read pending bytes from the USB CDC serial port.
     pub fn usb_read(&mut self, buf: &mut [u8]) -> usize {
         self.platform.usb_read(buf)
     }
 }
+
+/// Format-and-send helper: builds [`core::fmt::Arguments`] at the call site and
+/// forwards to [`Interface::usb_writeln`], so logging over USB CDC is one line.
+///
+/// ```text
+/// usb_writeln!(iface, "a = {}, b = {}", a, b);
+/// usb_writeln!(iface); // blank line
+/// ```
+///
+/// Exported at the crate root, so show modules need `use crate::usb_writeln;`
+/// (or reference it as `crate::usb_writeln!(...)`) to bring it into scope.
+#[macro_export]
+macro_rules! usb_writeln {
+    ($iface:expr) => {
+        $iface.usb_writeln(format_args!(""))
+    };
+    ($iface:expr, $($arg:tt)+) => {
+        $iface.usb_writeln(format_args!($($arg)+))
+    };
+}
+
