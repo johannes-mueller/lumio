@@ -92,18 +92,16 @@ pub struct Wave8<const N: usize> {
     decay: i32,
     steps_done: u32,
     source_overlay_past: i8,
-    excite_position: usize,
 }
 
 impl<const N: usize> Wave8<N> {
-    pub fn new(boundary: Boundary, excite_position: usize) -> Self {
+    pub fn new(boundary: Boundary) -> Self {
         assert!(N >= 3, "Wave8: N >= 3 required");
         Self {
             field_now: [0; N],
             field_before: [0; N],
             boundary,
             decay: 256,
-            excite_position,
             source_overlay_past: 0,
             steps_done: 0,
         }
@@ -146,7 +144,8 @@ impl<const N: usize> Wave8<N> {
     }
 
     pub fn excite(&mut self, excitement: i8) {
-        self.field_now[self.excite_position] = excitement;
+        self.field_now[0] = excitement;
+
     }
 
     #[inline]
@@ -154,21 +153,19 @@ impl<const N: usize> Wave8<N> {
         // Save old-level edge values before anything is overwritten:
         // right_edge_before = u[N-1]^n, inner_edge_before = u[N-2]^n
 
-        let node = self.excite_position;
-
-        let plain_field = sat8(self.field_now[node] as i32 - self.source_overlay_past as i32);
-        self.field_now[node] = sat8(plain_field as i32 + excitement as i32);
+        let plain_field = sat8(self.field_now[0] as i32 - self.source_overlay_past as i32);
+        self.field_now[0] = sat8(plain_field as i32 + excitement as i32);
 
         self.advance();
 
-        self.field_before[node] = plain_field;
+        self.field_before[0] = plain_field;
 
-        self.field_now[node] = sat8(self.field_now[node] as i32 + excitement as i32);
+        self.field_now[0] = sat8(self.field_now[0] as i32 + excitement as i32);
         self.source_overlay_past = excitement;
     }
 
     pub fn step(&mut self, excitement: i8) {
-        self.field_now[self.excite_position] = excitement;
+        self.field_now[0] = excitement;
         self.advance();
     }
 
@@ -201,7 +198,6 @@ impl<const N: usize> Wave8<N> {
 
         // Left edge: Dirichlet condition, i.e. the source.
 
-        //self.field_now[self.excite_position] =  excitement;
         // Right edge: closure per boundary type.
         self.field_before[0] = left_edge_before;
         self.field_before[N - 1] = right_edge_before;
@@ -517,20 +513,18 @@ impl ExciterWave {
         let freq_steps = INTERSTEPS as f32 * lam_led * frequency;
         let exciter = Exciter::new(freq_steps, omega, sigma);
 
-        let alt = 0;//position.alt;
-
         ExciterWave {
             position,
             color: Color::from_hsv(hue, 1.0, 1.0),
             exciter,
-            wave: Wave8::new(Boundary::Dirichlet, alt*INTERSTEPS),
+            wave: Wave8::new(Boundary::Dirichlet),
             steps_per_frame
         }
     }
 
-    fn distance_S(&self, led: usize) -> usize {
+    fn distance_(&self, led: usize) -> usize {
         let alt = led % STRIP_LENGTH;
-        (alt as i32 - self.position.alt as i32).abs() as usize * INTERSTEPS
+        (self.position.alt as i32 - alt as i32).abs() as usize * INTERSTEPS
     }
 
     fn distance(&self, led: usize) -> usize {
@@ -548,7 +542,7 @@ impl ExciterWave {
         let d_strip2 = if d_strip <= half_circle  {
             (d_strip * d_strip) as u16
         } else {
-            ((STRIP_NUM as u16 - d_strip) * (STRIP_NUM as u16 - d_strip))
+            (STRIP_NUM as u16 - d_strip) * (STRIP_NUM as u16 - d_strip)
         };
 
         let d = (d_strip2 + d_alt2).isqrt() as usize;
