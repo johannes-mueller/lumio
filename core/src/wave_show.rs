@@ -569,8 +569,10 @@ impl ExciterWave {
     }
 }
 
+const NUM_EXCITERS: usize = 3;
+
 pub struct WaveShow {
-    exciter_waves: [ExciterWave; 3],
+    exciter_waves: [ExciterWave; NUM_EXCITERS],
     color_diff: [ColorDiff; NUM_LED],
 }
 
@@ -605,7 +607,7 @@ impl Show for WaveShow {
         for i in 0..NUM_LED {
             self.color_diff[i] = NEUTRAL;
         }
-        for i in 0..3 {
+        for i in 0..NUM_EXCITERS {
             self.exciter_waves[i].process(&mut self.color_diff);
         }
 
