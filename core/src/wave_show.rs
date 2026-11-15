@@ -609,15 +609,13 @@ impl Show for WaveShow {
             self.exciter_waves[i].process(&mut self.color_diff);
         }
 
-        iface.led_strip().black();
-
         for i in 0..NUM_LED {
-            let red = sat8(self.color_diff[i].r as i32);
-            let green = sat8(self.color_diff[i].g as i32);
-            let blue = sat8(self.color_diff[i].b as i32);
-            let red_intensity = iscale8(red, red) as u8;
-            let green_intensity = iscale8(green, green) as u8;
-            let blue_intensity = iscale8(blue, blue) as u8;
+            let red = self.color_diff[i].r as i32;
+            let green = self.color_diff[i].g as i32;
+            let blue = self.color_diff[i].b as i32;
+            let red_intensity = (sat15(red * red) >> 7) as u8;
+            let green_intensity = (sat15(green * green) >> 7) as u8;
+            let blue_intensity = (sat15(blue * blue) >> 7) as u8;
             let color = Color {
                 r: red_intensity,
                 g: green_intensity,
