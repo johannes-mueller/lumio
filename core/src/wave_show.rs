@@ -6,7 +6,7 @@ use crate::{
 use crate::usb_writeln;
 
 const INTERSTEPS: usize = 10;
-const RESOLUTION: usize = INTERSTEPS * 2 * STRIP_LENGTH;
+const RESOLUTION: usize = INTERSTEPS * STRIP_LENGTH;
 
 pub fn iscale8(a: i8, b: i8) -> i8 {
     ((a as i16 * b as i16) >> 7) as i8
@@ -90,19 +90,22 @@ pub struct Wave8<const N: usize> {
     /// previous time level u^(n-1), supplies the u_tt term
     field_before: [i8; N],
     boundary: Boundary,
-    decay: i32,
+    decay_gain: Option<i32>,
     steps_done: u32,
     source_overlay_past: i8,
 }
 
 impl<const N: usize> Wave8<N> {
-    pub fn new(boundary: Boundary, decay: i32) -> Self {
+    pub fn new(boundary: Boundary, decay: Option<f32>) -> Self {
+
+        let decay_gain = decay.map(|d| ((1 << 15) as f32 * d) as i32);
+
         assert!(N >= 3, "Wave8: N >= 3 required");
         Self {
             field_now: [0; N],
             field_before: [0; N],
             boundary,
-            decay,
+            decay_gain,
             source_overlay_past: 0,
             steps_done: 0,
         }
@@ -129,6 +132,19 @@ impl<const N: usize> Wave8<N> {
         &self.field_before
     }
 
+
+    #[inline]
+    fn damp_both_levels(&mut self) {
+        match self.decay_gain {
+            Some(gain) => {
+                for value in self.field_now.iter_mut().chain(self.field_before.iter_mut()) {
+                    *value = damp_scale(*value, gain);
+                }
+            }
+            None => {}
+        }
+    }
+
     #[inline(always)]
     pub fn boundary(&self) -> Boundary {
         self.boundary
@@ -136,12 +152,6 @@ impl<const N: usize> Wave8<N> {
 
     pub fn set_boundary(&mut self, boundary: Boundary) {
         self.boundary = boundary;
-    }
-
-    /// Number of steps computed so far.
-    #[inline(always)]
-    pub fn steps_done(&self) -> u32 {
-        self.steps_done
     }
 
     pub fn excite(&mut self, excitement: i8) {
@@ -175,7 +185,6 @@ impl<const N: usize> Wave8<N> {
         let inner_right_edge_before = self.field_now[N - 2];
 
         let left_edge_before = self.field_now[0];
-        let inner_left_edge_before = self.field_now[1];
 
         // Walk backwards and cache the old value of u[j] before writing it.
         // Reading an already-overwritten neighbour yields an index error that
@@ -188,10 +197,7 @@ impl<const N: usize> Wave8<N> {
                 - self.field_before[j] as i32; // |new_value_raw| <= 3*127
 
             self.field_before[j] = center_before; // old u^n becomes u^(n-1)
-
-            let new_value_decay = (new_value_raw * self.decay) >> 8;
-            //let new_value_decay = new_value_raw;
-            self.field_now[j] = sat8(new_value_decay);
+            self.field_now[j] = sat8(new_value_raw);
 
             right_neighbour = center_before; // for the next (leftward) j
             j -= 1;
@@ -202,13 +208,6 @@ impl<const N: usize> Wave8<N> {
         // Right edge: closure per boundary type.
         self.field_before[0] = left_edge_before;
         self.field_before[N - 1] = right_edge_before;
-        self.field_now[0] = match self.boundary {
-            // r = 0 when sigma = 1: exact, one-sample memory only
-            Boundary::Mur => inner_left_edge_before,
-            // mirror image of the interior node
-            Boundary::Neumann => sat8(2 * inner_left_edge_before as i32 - left_edge_before as i32),
-            Boundary::Dirichlet => 0,
-        };
         self.field_now[N - 1] = match self.boundary {
             // r = 0 when sigma = 1: exact, one-sample memory only
             Boundary::Mur => inner_right_edge_before,
@@ -217,8 +216,25 @@ impl<const N: usize> Wave8<N> {
             Boundary::Dirichlet => 0,
         };
 
+        self.steps_done += 1;
+        if self.steps_done == 8 {
+            self.damp_both_levels();
+            self.steps_done = 0;
+        }
     }
 }
+
+#[inline(always)]
+fn damp_scale(value: i8, decay_gain: i32) -> i8 {
+    let magnitude = value.unsigned_abs() as i32;
+    if magnitude == 0 {
+        return 0; // no sign to preserve, nothing to do
+    }
+    let scaled = (magnitude * decay_gain + 16384) >> 15; // round to nearest
+    let decayed = if scaled < magnitude { scaled } else { magnitude - 1 };
+    if value < 0 { -(decayed as i8) } else { decayed as i8 }
+}
+
 
 // ===========================================================================
 // 3. SineOsc -- sin(omega*t) without sin
@@ -496,16 +512,17 @@ impl Exciter {
 pub struct ExciterWave {
     steps_per_frame: usize,
     exciter: Exciter,
+    exciter_gap: usize,
+    steps_done: usize,
     wave: Wave8<RESOLUTION>,
 
     position: Position,
-    decay: i32,
 
     color: Color,
 }
 
 impl ExciterWave {
-    pub fn new(position: Position, color: Color, wave_length: f32, decay: i32) -> ExciterWave {
+    pub fn new(position: Position, color: Color, wave_length: f32, decay: Option<f32>, exciter_gap: usize, boundary: Boundary) -> ExciterWave {
         let steps_per_frame: usize = 5;
         let lam_led: f32 = wave_length;
         let frequency: f32 = 2.0 as f32;
@@ -519,8 +536,9 @@ impl ExciterWave {
             position,
             color,
             exciter,
-            decay,
-            wave: Wave8::new(Boundary::Dirichlet, decay),
+            exciter_gap,
+            steps_done: 0,
+            wave: Wave8::new(boundary, decay),
             steps_per_frame
         }
     }
@@ -557,9 +575,19 @@ impl ExciterWave {
             let excitement = self.exciter.update();
             self.wave.step(excitement);
         }
+        for _ in 0..self.steps_per_frame {
 
-        if self.exciter.finished() && self.decay != 256 {
-            self.exciter.reset();
+            let excitement = self.exciter.update();
+            if !self.exciter.finished() {
+                self.wave.excite(excitement);
+            } else {
+                self.steps_done += 1;
+                if self.exciter_gap != 0 && self.exciter_gap == self.steps_done {
+                    self.exciter.reset();
+                    self.steps_done = 0;
+                }
+            }
+            self.wave.advance();
         }
 
         for i in 0..NUM_LED {
@@ -573,33 +601,58 @@ impl ExciterWave {
     }
 }
 
-const NUM_EXCITERS: usize = 3;
-
-pub struct WaveShow {
+pub struct WaveShow<const NUM_EXCITERS: usize> {
     exciter_waves: [ExciterWave; NUM_EXCITERS],
     color_diff: [ColorDiff; NUM_LED],
 }
 
-impl WaveShow {
-    pub fn new() -> Self {
+impl<const NUM_EXCITERS: usize> WaveShow<NUM_EXCITERS> {
+    pub fn new(exciter_waves: [ExciterWave; NUM_EXCITERS]) -> Self {
         let color_diff = core::array::from_fn(|_| ColorDiff {r: 0, g: 0, b: 0});
-
-        let decay = 255;
-
-        let exciter_waves = [
-            ExciterWave::new(Position {strip: 0, alt: 10}, RED, 30.5, decay),
-            ExciterWave::new(Position {strip: 15, alt: 50}, GREEN, 40.5, decay),
-            ExciterWave::new(Position {strip: 20, alt: 30}, BLUE, 25.5, decay),
-        ];
 
         Self {
             exciter_waves,
-            color_diff
+            color_diff,
         }
     }
 }
 
-impl Show for WaveShow {
+pub fn default_waveshow() -> WaveShow<3> {
+    let decay = None;
+    let exciter_gap = 1;
+    let boundary = Boundary::Mur;
+
+    let exciter_waves = [
+        // ExciterWave::new(Position {strip: 0, alt: 10}, RED, 30.5, decay),
+        // ExciterWave::new(Position {strip: 15, alt: 50}, GREEN, 40.5, decay),
+        // ExciterWave::new(Position {strip: 20, alt: 30}, BLUE, 25.5, decay),
+        ExciterWave::new(Position {strip: 0, alt: 20}, RED, 7.5, decay, exciter_gap, boundary),
+        ExciterWave::new(Position {strip: 15, alt: 50}, GREEN, 12.5, decay, exciter_gap, boundary),
+        ExciterWave::new(Position {strip: 20, alt: 10}, BLUE, 25.5, decay, exciter_gap, boundary),
+    ];
+
+    WaveShow::<3>::new(exciter_waves)
+}
+
+pub fn constant_waveshow() -> WaveShow<3> {
+    let decay = Some(0.99999);
+    let exciter_gap = 120;
+    let boundary = Boundary::Dirichlet;
+
+    let exciter_waves = [
+        // ExciterWave::new(Position {strip: 0, alt: 10}, RED, 30.5, decay),
+        // ExciterWave::new(Position {strip: 15, alt: 50}, GREEN, 40.5, decay),
+        // ExciterWave::new(Position {strip: 20, alt: 30}, BLUE, 25.5, decay),
+        ExciterWave::new(Position {strip: 0, alt: 20}, RED, 7.5, decay, exciter_gap, boundary),
+        ExciterWave::new(Position {strip: 15, alt: 50}, GREEN, 12.5, decay, exciter_gap, boundary),
+        ExciterWave::new(Position {strip: 20, alt: 10}, BLUE, 25.5, decay, exciter_gap, boundary),
+    ];
+
+    WaveShow::<3>::new(exciter_waves)
+}
+
+
+impl<const NUM_EXCITERS: usize> Show for WaveShow<NUM_EXCITERS> {
     fn title(&self) -> &'static str {
         "WaveShow"
     }

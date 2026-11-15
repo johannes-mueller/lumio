@@ -16,7 +16,7 @@ use crate::sparks::{FireWorks, SnowSparks, SparkFall};
 use crate::spiral::HueSpiral;
 use crate::stars::Stars;
 use crate::snow::SnowShow;
-use crate::wave_show::WaveShow;
+use crate::wave_show::{WaveShow, default_waveshow, constant_waveshow};
 
 /// Longest inbound USB CDC line the player keeps while waiting for a newline.
 const USB_LINE_MAX: usize = 64;
@@ -185,7 +185,8 @@ macro_rules! define_player {
 define_player! {
     pub struct Player;
     shows: [
-        (waves, WaveShow, WaveShow::new()),
+        (waves_1, WaveShow<3>, default_waveshow()),
+        (waves_2, WaveShow<3>, constant_waveshow()),
         (planets,          PlanetShow,    PlanetShow::new()),
         (particle_spiral,  ParticleCrash, ParticleCrash::new_spiral()),
         (sineshow,         SineShow,      SineShow::new()),
