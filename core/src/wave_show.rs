@@ -1,8 +1,9 @@
 use crate::{
     conf::*, interface::Interface,
-    led::Color,
+    led::{Color, RED, GREEN, BLUE},
     player::{Show, StepResult},
 };
+use crate::usb_writeln;
 
 const INTERSTEPS: usize = 10;
 const RESOLUTION: usize = INTERSTEPS * 2 * STRIP_LENGTH;
@@ -504,7 +505,7 @@ pub struct ExciterWave {
 }
 
 impl ExciterWave {
-    pub fn new(position: Position, hue: f32, wave_length: f32, decay: i32) -> ExciterWave {
+    pub fn new(position: Position, color: Color, wave_length: f32, decay: i32) -> ExciterWave {
         let steps_per_frame: usize = 5;
         let lam_led: f32 = wave_length;
         let frequency: f32 = 2.0 as f32;
@@ -516,7 +517,7 @@ impl ExciterWave {
 
         ExciterWave {
             position,
-            color: Color::from_hsv(hue, 1.0, 1.0),
+            color,
             exciter,
             decay,
             wave: Wave8::new(Boundary::Dirichlet, decay),
@@ -588,9 +589,9 @@ impl WaveShow {
         let decay = 255;
 
         let exciter_waves = [
-            ExciterWave::new(Position {strip: 0, alt: 10}, 0.0, 30.5, decay),
-            ExciterWave::new(Position {strip: 15, alt: 50}, 0.33, 40.5, decay),
-            ExciterWave::new(Position {strip: 20, alt: 30}, 0.67, 25.5, decay),
+            ExciterWave::new(Position {strip: 0, alt: 10}, RED, 30.5, decay),
+            ExciterWave::new(Position {strip: 15, alt: 50}, GREEN, 40.5, decay),
+            ExciterWave::new(Position {strip: 20, alt: 30}, BLUE, 25.5, decay),
         ];
 
         Self {
