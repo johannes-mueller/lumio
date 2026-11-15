@@ -239,6 +239,8 @@ pub struct Sim {
     last_real_us: f64,
     sim_time_us: u64,
     next_step_us: u64,
+    /// Frames rendered since the current show started.
+    show_frame: u32,
 }
 
 #[wasm_bindgen]
@@ -272,6 +274,7 @@ impl Sim {
             last_real_us: 0.0,
             sim_time_us: 0,
             next_step_us: 0,
+            show_frame: 0,
         }
     }
 
@@ -297,7 +300,7 @@ impl Sim {
             {
                 self.shared.borrow_mut().now = self.next_step_us;
             }
-            self.player.tick(&mut self.interface);
+            self.step_player();
             self.next_step_us = self.next_step_us.wrapping_add(STEP_INTERVAL_US);
             budget -= 1;
         }
@@ -306,12 +309,21 @@ impl Sim {
         }
     }
 
+    /// Step the player once and keep the per-show frame counter in sync.
+    fn step_player(&mut self) {
+        if self.player.tick(&mut self.interface) {
+            self.show_frame = 0;
+        } else {
+            self.show_frame = self.show_frame.wrapping_add(1);
+        }
+    }
+
     /// Run exactly one frame while paused.
     pub fn step_frame(&mut self) {
         {
             self.shared.borrow_mut().now = self.sim_time_us;
         }
-        self.player.tick(&mut self.interface);
+        self.step_player();
     }
 
     pub fn set_paused(&mut self, paused: bool) {
@@ -345,6 +357,11 @@ impl Sim {
         self.shared.borrow().frame.clone()
     }
 
+    /// Number of show frames rendered since the current show started.
+    pub fn frame_number(&self) -> u32 {
+        self.show_frame
+    }
+
     pub fn show_names(&self) -> Vec<String> {
         self.player.names().iter().map(|s| s.to_string()).collect()
     }
@@ -362,11 +379,15 @@ impl Sim {
     }
 
     pub fn select_show(&mut self, index: usize) {
-        self.player.select(index, &mut self.interface);
+        if index < Player::count() {
+            self.player.select(index, &mut self.interface);
+            self.show_frame = 0;
+        }
     }
 
     pub fn next_show(&mut self) {
         self.player.next(&mut self.interface);
+        self.show_frame = 0;
     }
 
     pub fn auto_led(&self) -> bool {
@@ -447,6 +468,80 @@ mod tests {
         let mut sim = Sim::new();
         sim.tick(FRAME_MS);
         assert_eq!(sim.frame().len(), NUM_LED * 3);
+    }
+
+    #[test]
+    fn frame_number_counts_steps_for_the_current_show() {
+        let mut sim = Sim::new();
+        let mut t = 0.0;
+        disable_auto_advance(&mut sim, &mut t);
+
+        sim.select_show(0);
+        assert_eq!(sim.frame_number(), 0);
+
+        for _ in 0..5 {
+            t += FRAME_MS;
+            sim.tick(t);
+        }
+        assert_eq!(sim.frame_number(), 5);
+
+        sim.next_show();
+        assert_eq!(sim.current_show(), 1);
+        assert_eq!(sim.frame_number(), 0);
+
+        t += FRAME_MS;
+        sim.tick(t);
+        assert_eq!(sim.frame_number(), 1);
+
+        sim.select_show(3);
+        assert_eq!(sim.frame_number(), 0);
+    }
+
+    #[test]
+    fn show_change_resets_the_frame_number() {
+        let mut sim = Sim::new();
+        let mut t = 0.0;
+        disable_auto_advance(&mut sim, &mut t);
+        sim.select_show(0);
+
+        for _ in 0..3 {
+            t += FRAME_MS;
+            sim.tick(t);
+        }
+        assert_eq!(sim.frame_number(), 3);
+
+        sim.press_button("advance", true);
+        t += FRAME_MS;
+        sim.tick(t);
+        sim.press_button("advance", false);
+        t += FRAME_MS;
+        sim.tick(t);
+
+        assert_eq!(sim.current_show(), 1);
+        assert_eq!(sim.frame_number(), 0);
+    }
+
+    #[test]
+    fn pause_freezes_the_frame_number_and_step_frame_advances_it() {
+        let mut sim = Sim::new();
+        let mut t = 0.0;
+        disable_auto_advance(&mut sim, &mut t);
+        sim.select_show(9);
+
+        t += FRAME_MS;
+        sim.tick(t);
+        let before = sim.frame_number();
+        assert_eq!(before, 1);
+
+        sim.set_paused(true);
+        for _ in 0..120 {
+            t += FRAME_MS;
+            sim.tick(t);
+        }
+        assert_eq!(sim.frame_number(), before);
+
+        sim.step_frame();
+        assert_eq!(sim.frame_number(), before + 1);
     }
 
     #[test]

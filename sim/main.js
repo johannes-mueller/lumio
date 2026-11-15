@@ -13,6 +13,7 @@ const canvas = document.getElementById("star");
 const ctx = canvas.getContext("2d");
 
 const showSelect = document.getElementById("show-select");
+const frameNumber = document.getElementById("frame-number");
 const pauseButton = document.getElementById("pause");
 const stepButton = document.getElementById("step");
 const speedInput = document.getElementById("speed");
@@ -110,6 +111,7 @@ function syncHud() {
   if (showSelect.value !== String(index)) {
     showSelect.value = String(index);
   }
+  frameNumber.textContent = String(sim.frame_number());
   autoLed.classList.toggle("on", sim.auto_led());
   activeLed.classList.toggle("on", sim.active_led());
 }

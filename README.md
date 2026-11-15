@@ -128,7 +128,8 @@ trunk serve
 Then open <http://127.0.0.1:8080>. Use the show picker to jump between effects,
 pause/resume or step a single frame, change the speed, and press-and-hold the
 **Advance** / **Action** buttons to imitate the two hardware buttons (a press
-longer than 1 s is a long press).
+longer than 1 s is a long press). The panel shows how many frames the current
+show has rendered, resetting whenever the show changes.
 
 To build a static bundle instead of serving:
 
