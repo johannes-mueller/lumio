@@ -95,13 +95,13 @@ pub struct Wave8<const N: usize> {
 }
 
 impl<const N: usize> Wave8<N> {
-    pub fn new(boundary: Boundary) -> Self {
+    pub fn new(boundary: Boundary, decay: i32) -> Self {
         assert!(N >= 3, "Wave8: N >= 3 required");
         Self {
             field_now: [0; N],
             field_before: [0; N],
             boundary,
-            decay: 256,
+            decay,
             source_overlay_past: 0,
             steps_done: 0,
         }
@@ -190,7 +190,7 @@ impl<const N: usize> Wave8<N> {
 
             let new_value_decay = (new_value_raw * self.decay) >> 8;
             //let new_value_decay = new_value_raw;
-            self.field_now[j] = sat8(new_value_raw);
+            self.field_now[j] = sat8(new_value_decay);
 
             right_neighbour = center_before; // for the next (leftward) j
             j -= 1;
@@ -498,12 +498,13 @@ pub struct ExciterWave {
     wave: Wave8<RESOLUTION>,
 
     position: Position,
+    decay: i32,
 
     color: Color,
 }
 
 impl ExciterWave {
-    pub fn new(position: Position, hue: f32, wave_length: f32) -> ExciterWave {
+    pub fn new(position: Position, hue: f32, wave_length: f32, decay: i32) -> ExciterWave {
         let steps_per_frame: usize = 5;
         let lam_led: f32 = wave_length;
         let frequency: f32 = 2.0 as f32;
@@ -517,7 +518,8 @@ impl ExciterWave {
             position,
             color: Color::from_hsv(hue, 1.0, 1.0),
             exciter,
-            wave: Wave8::new(Boundary::Dirichlet),
+            decay,
+            wave: Wave8::new(Boundary::Dirichlet, decay),
             steps_per_frame
         }
     }
@@ -553,7 +555,10 @@ impl ExciterWave {
         for _ in 0..self.steps_per_frame {
             let excitement = self.exciter.update();
             self.wave.step(excitement);
+        }
 
+        if self.exciter.finished() && self.decay != 256 {
+            self.exciter.reset();
         }
 
         let wave_field = self.wave.field();
@@ -580,10 +585,12 @@ impl WaveShow {
     pub fn new() -> Self {
         let color_diff = core::array::from_fn(|_| ColorDiff {r: 0, g: 0, b: 0});
 
+        let decay = 255;
+
         let exciter_waves = [
-            ExciterWave::new(Position {strip: 0, alt: 20}, 0.0, 7.5),
-            ExciterWave::new(Position {strip: 15, alt: 50}, 0.33, 12.5),
-            ExciterWave::new(Position {strip: 20, alt: 10}, 0.67, 25.5),
+            ExciterWave::new(Position {strip: 0, alt: 20}, 0.0, 7.5, decay),
+            ExciterWave::new(Position {strip: 15, alt: 50}, 0.33, 12.5, decay),
+            ExciterWave::new(Position {strip: 20, alt: 10}, 0.67, 25.5, decay),
         ];
 
         Self {
