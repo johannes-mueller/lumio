@@ -119,8 +119,8 @@ impl<const N: usize> Wave8<N> {
 
     /// Current time level u^n.
     #[inline(always)]
-    pub fn field(&self) -> &[i8; N] {
-        &self.field_now
+    pub fn field(&self, pos: usize) -> i8 {
+        ((self.field_before[pos] as i16 + self.field_now[pos] as i16) >> 1) as i8
     }
 
     /// Previous time level u^(n-1).
@@ -562,11 +562,9 @@ impl ExciterWave {
             self.exciter.reset();
         }
 
-        let wave_field = self.wave.field();
-
         for i in 0..NUM_LED {
             let dist = self.distance(i);
-            let field = wave_field[dist];
+            let field = self.wave.field(dist);
 
             canvas[i].r = canvas[i].r + iscale8((self.color.r >> 1) as i8, field) as i16;
             canvas[i].g = canvas[i].g + iscale8((self.color.g >> 1) as i8, field) as i16;
