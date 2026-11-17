@@ -615,6 +615,25 @@ impl<const NUM_EXCITERS: usize> WaveShow<NUM_EXCITERS> {
             color_diff,
         }
     }
+
+    fn write_out(&mut self, iface: &mut Interface<'_>) {
+        for i in 0..NUM_LED {
+            let red = self.color_diff[i].r as i32;
+            let green = self.color_diff[i].g as i32;
+            let blue = self.color_diff[i].b as i32;
+            let red_intensity = (sat15(red * red) >> 7) as u8;
+            let green_intensity = (sat15(green * green) >> 7) as u8;
+            let blue_intensity = (sat15(blue * blue) >> 7) as u8;
+            let color = Color {
+                r: red_intensity,
+                g: green_intensity,
+                b: blue_intensity,
+            };
+            iface.led_strip().set_led(i as isize, color);
+        }
+
+        iface.write_spi();
+    }
 }
 
 pub fn default_waveshow() -> WaveShow<3> {
@@ -670,22 +689,7 @@ impl<const NUM_EXCITERS: usize> Show for WaveShow<NUM_EXCITERS> {
             self.exciter_waves[i].process(&mut self.color_diff);
         }
 
-        for i in 0..NUM_LED {
-            let red = self.color_diff[i].r as i32;
-            let green = self.color_diff[i].g as i32;
-            let blue = self.color_diff[i].b as i32;
-            let red_intensity = (sat15(red * red) >> 7) as u8;
-            let green_intensity = (sat15(green * green) >> 7) as u8;
-            let blue_intensity = (sat15(blue * blue) >> 7) as u8;
-            let color = Color {
-                r: red_intensity,
-                g: green_intensity,
-                b: blue_intensity,
-            };
-            iface.led_strip().set_led(i as isize, color);
-        }
-
-        iface.write_spi();
+        self.write_out(iface);
 
         StepResult::Running
     }
