@@ -35,6 +35,49 @@ impl Position {
 
 const NEUTRAL: ColorDiff = ColorDiff { r: 0, g: 0, b: 0 };
 
+struct Canvas {
+    color_diff: [ColorDiff; NUM_LED],
+}
+
+impl Canvas {
+    fn new() -> Self {
+        Canvas { color_diff: core::array::from_fn(|_| NEUTRAL) }
+    }
+
+    fn reset(&mut self) {
+        for cd in self.color_diff.iter_mut() {
+            *cd = NEUTRAL;
+        }
+    }
+
+    fn paint(&mut self, pos: usize, color: Color, field: i8) {
+        let pixel = &mut self.color_diff[pos];
+        pixel.r = pixel.r + iscale8((color.r >> 1) as i8, field) as i16;
+        pixel.g = pixel.g + iscale8((color.g >> 1) as i8, field) as i16;
+        pixel.b = pixel.b + iscale8((color.b >> 1) as i8, field) as i16;
+    }
+
+    fn write_out(&mut self, iface: &mut Interface<'_>) {
+        for i in 0..NUM_LED {
+            let red = self.color_diff[i].r as i32;
+            let green = self.color_diff[i].g as i32;
+            let blue = self.color_diff[i].b as i32;
+            let red_intensity = (sat15(red * red) >> 7) as u8;
+            let green_intensity = (sat15(green * green) >> 7) as u8;
+            let blue_intensity = (sat15(blue * blue) >> 7) as u8;
+            let color = Color {
+                r: red_intensity,
+                g: green_intensity,
+                b: blue_intensity,
+            };
+            iface.led_strip().set_led(i as isize, color);
+        }
+
+        iface.write_spi();
+    }
+
+}
+
 const I8_MIN: i32 = i8::MIN as i32;
 const I8_MAX: i32 = i8::MAX as i32;
 const I16_MIN: i32 = i16::MIN as i32;
@@ -132,6 +175,9 @@ impl<const N: usize> Wave8<N> {
         &self.field_before
     }
 
+    fn inactive(&self) -> bool {
+        self.field_now.iter().all(|&f| f == 0)
+    }
 
     #[inline]
     fn damp_both_levels(&mut self) {
@@ -456,7 +502,7 @@ impl BellEnv {
 // ===========================================================================
 
 /// f(t) = 127 * sin(omega*t) * exp(-((t-t0)/sigma)^2), output as int8.
-pub struct Exciter {
+struct Exciter {
     /// sine carrier, produces sin(omega*t)
     carrier: SineOsc,
     /// Gaussian envelope, produces exp(-((t-t0)/sigma)^2)
@@ -468,12 +514,12 @@ impl Exciter {
     /// All arguments in SI units: fs in 1/s, omega in rad/s, sigma in s.
     /// t0 does not appear explicitly; it is implied by the step counter and
     /// must match the phase reference of the caller.
-    pub fn new(fs: f32, omega: f32, sigma: f32) -> Self {
+    fn new(fs: f32, omega: f32, sigma: f32) -> Self {
         Self::from_dt(omega / fs, 1.0 / (fs * sigma))
     }
 
     /// Variant taking the two dimensionless ratios directly.
-    pub fn from_dt(omega_dt: f32, dt_over_sigma: f32) -> Self {
+    fn from_dt(omega_dt: f32, dt_over_sigma: f32) -> Self {
         Self {
             carrier: SineOsc::new(omega_dt),
             envelope: BellEnv::new(dt_over_sigma),
@@ -481,7 +527,7 @@ impl Exciter {
         }
     }
 
-    pub fn reconfigure(&mut self, fs: f32, omega: f32, sigma: f32) -> &mut Self {
+    fn reconfigure(&mut self, fs: f32, omega: f32, sigma: f32) -> &mut Self {
         let omega_dt = omega / fs;
         let dt_over_sigma = 1.0 / (fs * sigma);
         self.carrier = SineOsc::new(omega_dt);
@@ -491,7 +537,7 @@ impl Exciter {
     }
 
     /// Restart both generators; the step counter returns to zero.
-    pub fn reset(&mut self) -> &mut Self {
+    fn reset(&mut self) -> &mut Self {
         self.carrier.reset();
         self.envelope.reset();
         self.steps_done = 0;
@@ -499,13 +545,13 @@ impl Exciter {
     }
 
     #[inline(always)]
-    pub fn steps_done(&self) -> u32 {
+    fn steps_done(&self) -> u32 {
         self.steps_done
     }
 
     /// Returns f(t_n) as int8. First call yields t = dt, not t = 0.
     #[inline(always)]
-    pub fn update(&mut self) -> i8 {
+    fn update(&mut self) -> i8 {
         let carrier_value = self.carrier.update(); // Q15, |value| <= 32767
         let envelope_value = self.envelope.update(); // Q15, 0..32767
         self.steps_done += 1;
@@ -513,12 +559,12 @@ impl Exciter {
         sat8((((carrier_value * envelope_value) >> 15) + 128) >> 8)
     }
 
-    pub fn finished(&self) -> bool {
+    fn finished(&self) -> bool {
         self.envelope.finished()
     }
 }
 
-pub struct ExciterWave {
+struct ExciterWave {
     steps_per_frame: usize,
     exciter: Exciter,
     exciter_gap: usize,
@@ -531,7 +577,7 @@ pub struct ExciterWave {
 }
 
 impl ExciterWave {
-    pub fn new(position: Position, color: Color, wave_length: f32, decay: Option<f32>, exciter_gap: usize, boundary: Boundary) -> ExciterWave {
+    fn new(position: Position, color: Color, wave_length: f32, decay: Option<f32>, exciter_gap: usize, boundary: Boundary) -> ExciterWave {
         let steps_per_frame: usize = 5;
         let lam_led: f32 = wave_length;
         let frequency: f32 = 2.0 as f32;
@@ -565,7 +611,7 @@ impl ExciterWave {
             exciter: Exciter::new(freq_steps, omega, sigma),
             exciter_gap: 0,
             steps_done: 0,
-            wave: Wave8::new(Boundary::Mur, Some(decay)),
+            wave: Wave8::new(Boundary::Dirichlet, Some(decay)),
             steps_per_frame: 5,
         }
     }
@@ -614,20 +660,20 @@ impl ExciterWave {
         d * INTERSTEPS
     }
 
-    pub fn reset(&mut self) {
+    fn reset(&mut self) {
         self.exciter.reset();
         self.steps_done = 0;
     }
 
-    pub fn finished(&self) -> bool {
+    fn finished(&self) -> bool {
         self.exciter_gap != 0 && self.exciter_gap <= self.steps_done
     }
 
-    pub fn inactive(&self) -> bool {
-        self.steps_done == 0 || self.finished()
+    fn inactive(&self) -> bool {
+        self.wave.inactive()
     }
 
-    pub fn process(&mut self, canvas: &mut [ColorDiff; NUM_LED]) {
+    fn process(&mut self, canvas: &mut Canvas) {
         if self.color == BLACK {
             return;
         }
@@ -649,10 +695,7 @@ impl ExciterWave {
         for i in 0..NUM_LED {
             let dist = self.distance(i);
             let field = self.wave.field(dist);
-
-            canvas[i].r = canvas[i].r + iscale8((self.color.r >> 1) as i8, field) as i16;
-            canvas[i].g = canvas[i].g + iscale8((self.color.g >> 1) as i8, field) as i16;
-            canvas[i].b = canvas[i].b + iscale8((self.color.b >> 1) as i8, field) as i16;
+            canvas.paint(i, self.color, field);
         }
     }
 }
@@ -661,14 +704,14 @@ impl ExciterWave {
 
 pub struct WaveShow<const NUM_EXCITERS: usize> {
     exciter_waves: [ExciterWave; NUM_EXCITERS],
-    color_diff: [ColorDiff; NUM_LED],
+    canvas: Canvas,
 }
 
 
 pub struct RandomWaveShow<const NUM_EXCITERS: usize> {
     hue: f32,
     exciter_waves: [ExciterWave; NUM_EXCITERS],
-    color_diff: [ColorDiff; NUM_LED],
+    canvas: Canvas,
 }
 
 
@@ -676,28 +719,9 @@ impl<const NUM_EXCITERS: usize> RandomWaveShow<NUM_EXCITERS> {
 
     pub fn new() -> Self {
         let exciter_waves = core::array::from_fn(|_| ExciterWave::new_uninitialized());
-        let color_diff = core::array::from_fn(|_| ColorDiff {r: 0, g: 0, b: 0});
-        Self { hue: 0.0, exciter_waves, color_diff }
+        Self { hue: 0.0, exciter_waves, canvas: Canvas::new() }
     }
 
-    fn write_out(&mut self, iface: &mut Interface<'_>) {
-        for i in 0..NUM_LED {
-            let red = self.color_diff[i].r as i32;
-            let green = self.color_diff[i].g as i32;
-            let blue = self.color_diff[i].b as i32;
-            let red_intensity = (sat15(red * red) >> 7) as u8;
-            let green_intensity = (sat15(green * green) >> 7) as u8;
-            let blue_intensity = (sat15(blue * blue) >> 7) as u8;
-            let color = Color {
-                r: red_intensity,
-                g: green_intensity,
-                b: blue_intensity,
-            };
-            iface.led_strip().set_led(i as isize, color);
-        }
-
-        iface.write_spi();
-    }
 }
 
 const WAVE_PROB: f32 = 9e-3;
@@ -712,9 +736,7 @@ impl<const NUM_EXCITERS: usize> Show for RandomWaveShow<NUM_EXCITERS> {
 
     fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
 
-        for i in 0..NUM_LED {
-            self.color_diff[i] = NEUTRAL;
-        }
+        self.canvas.reset();
 
         for exciter_wave in self.exciter_waves.iter_mut() {
             if exciter_wave.inactive() && iface.random().value() < WAVE_PROB {
@@ -727,44 +749,78 @@ impl<const NUM_EXCITERS: usize> Show for RandomWaveShow<NUM_EXCITERS> {
                 let wave_length = iface.random().value() * 30.0 + 2.0;
                 exciter_wave.initialize(position, color, wave_length);
             }
-            exciter_wave.process(&mut self.color_diff);
+            exciter_wave.process(&mut self.canvas);
         }
 
-        self.write_out(iface);
+        self.canvas.write_out(iface);
 
         StepResult::Running
     }
 }
 
 
+pub struct RaisingWaveShow<const NUM_EXCITERS: usize> {
+    exciter_waves: [ExciterWave; NUM_EXCITERS],
+    canvas: Canvas,
+}
 
-impl<const NUM_EXCITERS: usize> WaveShow<NUM_EXCITERS> {
-    pub fn new(exciter_waves: [ExciterWave; NUM_EXCITERS]) -> Self {
-        let color_diff = core::array::from_fn(|_| ColorDiff {r: 0, g: 0, b: 0});
+impl<const NUM_EXCITERS: usize> RaisingWaveShow<NUM_EXCITERS> {
 
-        Self {
-            exciter_waves,
-            color_diff,
-        }
+    pub fn new() -> Self {
+        let exciter_waves = core::array::from_fn(|_| ExciterWave::new_uninitialized());
+        Self { exciter_waves, canvas: Canvas::new() }
     }
 
-    fn write_out(&mut self, iface: &mut Interface<'_>) {
-        for i in 0..NUM_LED {
-            let red = self.color_diff[i].r as i32;
-            let green = self.color_diff[i].g as i32;
-            let blue = self.color_diff[i].b as i32;
-            let red_intensity = (sat15(red * red) >> 7) as u8;
-            let green_intensity = (sat15(green * green) >> 7) as u8;
-            let blue_intensity = (sat15(blue * blue) >> 7) as u8;
-            let color = Color {
-                r: red_intensity,
-                g: green_intensity,
-                b: blue_intensity,
-            };
-            iface.led_strip().set_led(i as isize, color);
+}
+
+impl<const NUM_EXCITERS: usize> Show for RaisingWaveShow<NUM_EXCITERS> {
+    fn title(&self) -> &'static str {
+        "RaisingWaveShow"
+    }
+
+    fn reset(&mut self, _iface: &mut Interface<'_>) {
+    }
+
+    fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
+
+        self.canvas.reset();
+
+        let all_inactive = self.exciter_waves.iter().all(|e| e.inactive());
+        if all_inactive &&  iface.random().value() < WAVE_PROB {
+            let position_0 = Position { strip: 0, alt: 0 };
+            let position_1 = Position { strip: 7, alt: 0 };
+            let position_2 = Position { strip: 23, alt: 0 };
+
+            let hue_0 = iface.random().value();
+            let hue_1 = (hue_0 + 0.6) % 1.0;
+            let hue_2 = (hue_0 + 0.4) % 1.0;
+            let color_0 = Color::from_hsv(hue_0, 1.0, 1.0);
+            let color_1 = Color::from_hsv(hue_1, 1.0, 1.0);
+            let color_2 = Color::from_hsv(hue_2, 1.0, 1.0);
+            let wave_length_0 = iface.random().value() * 30.0 + 2.0;
+            let wave_length_1 = iface.random().value() * 30.0 + 2.0;
+            let wave_length_2 = iface.random().value() * 30.0 + 2.0;
+            self.exciter_waves[0].initialize(position_0, color_0, wave_length_0);
+            self.exciter_waves[1].initialize(position_1, color_1, wave_length_1);
+            self.exciter_waves[2].initialize(position_2, color_2, wave_length_2);
         }
 
-        iface.write_spi();
+        for exciter_wave in self.exciter_waves.iter_mut() {
+            exciter_wave.process(&mut self.canvas);
+        }
+
+        self.canvas.write_out(iface);
+
+        StepResult::Running
+    }
+}
+
+impl<const NUM_EXCITERS: usize> WaveShow<NUM_EXCITERS> {
+    fn new(exciter_waves: [ExciterWave; NUM_EXCITERS]) -> Self {
+        Self {
+            exciter_waves,
+            canvas: Canvas::new()
+        }
     }
 }
 
@@ -814,18 +870,16 @@ impl<const NUM_EXCITERS: usize> Show for WaveShow<NUM_EXCITERS> {
 
     fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
 
-        for i in 0..NUM_LED {
-            self.color_diff[i] = NEUTRAL;
-        }
+        self.canvas.reset();
 
         for exciter_wave in self.exciter_waves.iter_mut() {
-            exciter_wave.process(&mut self.color_diff);
+            exciter_wave.process(&mut self.canvas);
             if exciter_wave.finished() {
                 exciter_wave.reset();
             }
         }
 
-        self.write_out(iface);
+        self.canvas.write_out(iface);
 
         StepResult::Running
     }
