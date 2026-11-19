@@ -60,15 +60,35 @@ macro_rules! define_player {
             pub const NUM_SHOWS: usize = [ $( stringify!($field) ),* ].len();
 
             pub fn new(iface: &mut Interface<'_>) -> Self {
-                let mut player = Self {
-                    current: 0,
-                    $( $field: $ctor, )*
-                    rx_buf: [0; USB_LINE_MAX],
-                    rx_len: 0,
-                };
+                let mut slot = core::mem::MaybeUninit::<Self>::uninit();
+                Self::init_in_place(&mut slot, iface);
+                unsafe { slot.assume_init() }
+            }
+
+            /// Construct the player directly into `slot`, which must be
+            /// uninitialized.
+            ///
+            /// [`Self::new`] returns the whole playlist by value, so on a
+            /// target with a small stack (the RP2040) merely calling it costs
+            /// the full size of `Player` in `main`'s frame. Writing each field
+            /// straight into `slot` instead keeps the peak stack cost at a
+            /// single show rather than the entire playlist.
+            pub fn init_in_place(
+                slot: &mut core::mem::MaybeUninit<Self>,
+                iface: &mut Interface<'_>,
+            ) {
+                let this = slot.as_mut_ptr();
+                unsafe {
+                    core::ptr::write(core::ptr::addr_of_mut!((*this).current), 0usize);
+                    $(
+                        core::ptr::write(core::ptr::addr_of_mut!((*this).$field), $ctor);
+                    )*
+                    core::ptr::write(core::ptr::addr_of_mut!((*this).rx_buf), [0u8; USB_LINE_MAX]);
+                    core::ptr::write(core::ptr::addr_of_mut!((*this).rx_len), 0usize);
+                }
+                let player = unsafe { slot.assume_init_mut() };
                 player.reset_current(iface);
                 player.announce(iface);
-                player
             }
 
             #[allow(dead_code)]
