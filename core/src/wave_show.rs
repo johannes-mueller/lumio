@@ -4,7 +4,6 @@ use crate::{
     led::{Color, RED, GREEN, BLUE, BLACK},
     player::{Show, StepResult},
 };
-use crate::usb_writeln;
 
 const INTERSTEPS: usize = 10;
 const RESOLUTION: usize = INTERSTEPS * STRIP_LENGTH + STRIP_LENGTH / 2;
@@ -464,11 +463,6 @@ impl Exciter {
         self
     }
 
-    #[inline(always)]
-    fn steps_done(&self) -> u32 {
-        self.steps_done
-    }
-
     /// Returns f(t_n) as int8. First call yields t = dt, not t = 0.
     #[inline(always)]
     fn update(&mut self) -> i8 {
@@ -553,7 +547,8 @@ impl ExciterWave {
         self
     }
 
-    fn distance_(&self, led: usize) -> usize {
+    #[allow(dead_code)] // might be used in the future
+    fn distance_alt(&self, led: usize) -> usize {
         let alt = led % STRIP_LENGTH;
         (self.position.alt as i32 - alt as i32).abs() as usize * INTERSTEPS
     }
