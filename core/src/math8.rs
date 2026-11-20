@@ -17,3 +17,36 @@ pub fn qadd8(a: u8, b: u8) -> u8 {
     }
     a + b
 }
+
+
+pub fn iscale8(a: i8, b: i8) -> i8 {
+    ((a as i16 * b as i16) >> 7) as i8
+}
+
+
+pub const I8_MIN: i32 = i8::MIN as i32;
+pub const I8_MAX: i32 = i8::MAX as i32;
+pub const I16_MIN: i32 = i16::MIN as i32;
+pub const I16_MAX: i32 = i16::MAX as i32;
+
+#[inline(always)]
+pub const fn sat8(value: i32) -> i8 {
+    if value > I8_MAX {
+        i8::MAX
+    } else if value < I8_MIN {
+        i8::MIN
+    } else {
+        value as i8
+    }
+}
+
+#[inline(always)]
+pub const fn sat15(value: i32) -> i32 {
+    if value > I16_MAX {
+        I16_MAX
+    } else if value < I16_MIN {
+        I16_MIN
+    } else {
+        value
+    }
+}

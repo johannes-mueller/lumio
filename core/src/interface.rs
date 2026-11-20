@@ -1,10 +1,14 @@
 use core::fmt::{self, Write as _};
 
+use crate::conf::*;
+
 use crate::button::{Button, ButtonState};
 use crate::ledstrip::LEDStrip;
+use crate::led::Color;
 use crate::platform::{ButtonId, Platform, StatusLedId};
 use crate::random::Random;
 use crate::showtimer::ShowTimer;
+use crate::math8::{iscale8, sat15};
 
 /// Size of the stack-allocated USB line buffer owned by [`Interface`]. Enough
 /// for a verbose per-LED debug line plus a newline.
@@ -48,6 +52,38 @@ impl Drop for UsbWriter<'_> {
     }
 }
 
+pub struct ColorDiff {
+    r: i16,
+    g: i16,
+    b: i16,
+}
+
+const NEUTRAL: ColorDiff = ColorDiff { r: 0, g: 0, b: 0 };
+
+pub struct Canvas {
+    color_diff: [ColorDiff; NUM_LED],
+}
+
+impl Canvas {
+    pub fn new() -> Self {
+        Canvas { color_diff: core::array::from_fn(|_| NEUTRAL) }
+    }
+
+    pub fn reset(&mut self) {
+        for cd in self.color_diff.iter_mut() {
+            *cd = NEUTRAL;
+        }
+    }
+
+    pub fn paint(&mut self, pos: usize, color: Color, field: i8) {
+        let pixel = &mut self.color_diff[pos];
+        pixel.r = pixel.r + iscale8((color.r >> 1) as i8, field) as i16;
+        pixel.g = pixel.g + iscale8((color.g >> 1) as i8, field) as i16;
+        pixel.b = pixel.b + iscale8((color.b >> 1) as i8, field) as i16;
+    }
+}
+
+
 /// The bridge between the shows and a concrete [`Platform`].
 ///
 /// Everything a show needs is available here. The hardware-specific
@@ -55,6 +91,7 @@ impl Drop for UsbWriter<'_> {
 /// needs a `&mut dyn Platform`.
 pub struct Interface<'p> {
     led_strip: LEDStrip,
+    canvas: Canvas,
     showtimer: ShowTimer,
     button: Button,
     random: Random,
@@ -69,6 +106,7 @@ impl<'p> Interface<'p> {
         let now = platform.now_micros();
         Interface {
             led_strip: LEDStrip::new(),
+            canvas: Canvas::new(),
             showtimer: ShowTimer::new(now),
             button: Button::new(),
             random: Random::new(423434859),
@@ -81,6 +119,29 @@ impl<'p> Interface<'p> {
 
     pub fn led_strip(&mut self) -> &mut LEDStrip {
         &mut self.led_strip
+    }
+
+    pub fn canvas(&mut self) -> &mut Canvas {
+        &mut self.canvas
+    }
+
+    pub fn write_out_canvas(&mut self) {
+        for i in 0..NUM_LED {
+            let red = self.canvas.color_diff[i].r as i32;
+            let green = self.canvas.color_diff[i].g as i32;
+            let blue = self.canvas.color_diff[i].b as i32;
+            let red_intensity = (sat15(red * red) >> 7) as u8;
+            let green_intensity = (sat15(green * green) >> 7) as u8;
+            let blue_intensity = (sat15(blue * blue) >> 7) as u8;
+            let color = Color {
+                r: red_intensity,
+                g: green_intensity,
+                b: blue_intensity,
+            };
+            self.led_strip.set_led(i as isize, color);
+        }
+        self.write_spi();
+        self.canvas.reset();
     }
 
     pub fn random(&mut self) -> &mut Random {
@@ -203,4 +264,3 @@ macro_rules! usb_writeln {
         $iface.usb_writeln(format_args!($($arg)+))
     };
 }
-
