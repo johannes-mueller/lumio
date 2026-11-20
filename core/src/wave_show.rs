@@ -599,10 +599,6 @@ impl ExciterWave {
             return;
         }
         for _ in 0..self.steps_per_frame {
-            let excitement = self.exciter.update();
-            self.wave.step(excitement);
-        }
-        for _ in 0..self.steps_per_frame {
 
             let excitement = self.exciter.update();
             if !self.exciter.finished() {
