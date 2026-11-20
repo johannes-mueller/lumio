@@ -38,6 +38,12 @@ jobs:
         with:
           tool: flip-link
 
+      # `libudev-dev` provides `libudev.pc` for pkg-config; it is a build
+      # dependency of elf2uf2-rs (via serialport) and is not preinstalled on
+      # the GitHub runner image.
+      - name: Install libudev
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
       - name: Install elf2uf2-rs
         run: cargo install elf2uf2-rs --version 2.2.0 --locked
 
