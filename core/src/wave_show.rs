@@ -42,8 +42,9 @@ pub enum Boundary {
 
 /// 1-D wave, sigma = c*dt/ds = 1.
 ///
-///     field_now[j]  <=  field_now[j-1] + field_now[j+1] - field_before[j]
-///
+/// ```text
+/// field_now[j]  <=  field_now[j-1] + field_now[j+1] - field_before[j]
+/// ```
 /// Two int8 arrays = 2*N bytes of total state. Updated in place, walking
 /// backwards so the still-unmodified right neighbour is read.
 pub struct Wave8<const N: usize> {
@@ -207,8 +208,10 @@ fn damp_scale(value: i8, decay_gain: i32) -> i8 {
 
 /// Quadrature oscillator ("magic circle").
 ///
-///     sin_new = sin_value + phase_step*cos_value
-///     cos_new = cos_value - phase_step*sin_new
+/// ```text
+/// sin_new = sin_value + phase_step*cos_value
+/// cos_new = cos_value - phase_step*sin_new
+/// ```
 ///
 /// The system matrix has determinant exactly 1, so the generated frequency is
 /// exactly omega*dt per step. `cos_value` starts at Q15_MAX*cos(omega*dt/2)
@@ -289,13 +292,16 @@ const INV_LN2: f32 = 1.442_695_040_888_963_4;
 
 /// Gaussian envelope evaluated in the log2 domain.
 ///
-///     log2(envelope) = -C*(n - t0/dt)^2 ,  C = (dt/sigma)^2 / ln2
+/// ```text
+/// log2(envelope) = -C*(n - t0/dt)^2 ,  C = (dt/sigma)^2 / ln2
+/// ```
 ///
 /// That is a parabola, i.e. a constant second difference, so a step costs two
 /// additions:
 ///
-///     log2_envelope += log2_slope ;  log2_slope += log2_curvature
-///
+/// ```text
+/// log2_envelope += log2_slope ;  log2_slope += log2_curvature
+/// ```
 /// The inverse map 2^x uses a cubic polynomial on [0,1) plus a shift by 2^-k.
 /// No lookup table, no exp.
 pub struct BellEnv {
