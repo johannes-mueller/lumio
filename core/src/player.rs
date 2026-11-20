@@ -16,7 +16,7 @@ use crate::sparks::{FireWorks, SnowSparks, SparkFall};
 use crate::spiral::HueSpiral;
 use crate::stars::Stars;
 use crate::snow::SnowShow;
-use crate::wave_show::{WaveShow, RandomWaveShow, RaisingWaveShow, default_waveshow, constant_waveshow};
+use crate::wave_show::{WaveShow, RandomWaveShow, default_waveshow, constant_waveshow};
 
 /// Longest inbound USB CDC line the player keeps while waiting for a newline.
 const USB_LINE_MAX: usize = 64;

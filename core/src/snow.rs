@@ -153,6 +153,7 @@ fn make_wind(iface: &mut Interface, wind: i32) -> i32 {
     (wind + wind_change).min(32).max(-32)
 }
 
+#[allow(dead_code)]  // only for debugging
 fn show_wind(iface: &mut Interface, wind: i32) {
     if wind < 0 {
         for i in 0..(-wind as usize) {
