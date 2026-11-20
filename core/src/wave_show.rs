@@ -792,8 +792,8 @@ impl<const NUM_EXCITERS: usize> Show for RaisingWaveShow<NUM_EXCITERS> {
             let position_2 = Position { strip: 23, alt: 0 };
 
             let hue_0 = iface.random().value();
-            let hue_1 = (hue_0 + 0.6) % 1.0;
-            let hue_2 = (hue_0 + 0.4) % 1.0;
+            let hue_1 = (hue_0 + 0.1) % 1.0;
+            let hue_2 = (hue_0 - 0.1) % 1.0;
             let color_0 = Color::from_hsv(hue_0, 1.0, 1.0);
             let color_1 = Color::from_hsv(hue_1, 1.0, 1.0);
             let color_2 = Color::from_hsv(hue_2, 1.0, 1.0);
