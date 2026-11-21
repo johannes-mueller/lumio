@@ -1,9 +1,8 @@
 use crate::{
-    conf::*, interface::{Interface, Canvas},
-    math8::{sat8, sat15, I16_MAX},
-    led::{Color, RED, GREEN, BLUE, BLACK},
-    player::{Show, StepResult},
+    conf::*, interface::{Canvas, Interface}, led::{BLACK, BLUE, Color, GREEN, RED}, math8::{I16_MAX, iscale8, sat8, sat15}, player::{Show, StepResult},
 };
+
+use crate::usb_writeln;
 
 const INTERSTEPS: usize = 10;
 const RESOLUTION: usize = INTERSTEPS * STRIP_LENGTH + STRIP_LENGTH / 2;
@@ -21,6 +20,34 @@ impl Position {
 
     pub fn led_pos(&self) -> usize {
         self.alt + self.strip * STRIP_LENGTH
+    }
+
+    pub fn distance(&self, led: usize) -> usize {
+        let alt = (led % STRIP_LENGTH) as i16;
+        let strip = (led / STRIP_LENGTH) as i16;
+
+        let p_alt = self.alt as i16;
+        let p_strip = self.strip as i16;
+
+        let d_alt2 = ((alt - p_alt) * (alt - p_alt)) as u16;
+
+        let half_circle = (STRIP_NUM / 2) as u16;
+        let d_strip = (strip - p_strip).abs() as u16;
+
+        let d_strip2 = if d_strip <= half_circle  {
+            (d_strip * d_strip) as u16
+        } else {
+            (STRIP_NUM as u16 - d_strip) * (STRIP_NUM as u16 - d_strip)
+        };
+
+        let d = (d_strip2 + d_alt2).isqrt() as usize;
+        d * INTERSTEPS
+    }
+
+    #[allow(dead_code)] // might be used in the future
+    fn distance_alt(&self, led: usize) -> usize {
+        let alt = led % STRIP_LENGTH;
+        (self.alt as i32 - alt as i32).abs() as usize * INTERSTEPS
     }
 }
 
@@ -282,47 +309,58 @@ impl SineOsc {
     }
 }
 
+
 // ===========================================================================
-// 4. BellEnv -- exp(-((t-t0)/sigma)^2) without exp
+// 4. BellEnv -- Gaussian envelope, no exp(), no f32 in the hot path
 // ===========================================================================
 
-/// Lower bound of log2(envelope): 2^-10 ~ 0.001, below 1 LSB in int8.
+/// Octave span between full scale and the floor: 32768 * 2^-10 == 32.
+const BELL_OCTAVES: i64 = 10;
+
+/// Sample value at both feet of the symmetric bell, in Q15.
+const BELL_ENDPOINT_Q15: i32 = 32;
+
+/// Legacy mode terminates when the envelope drops below 2^-10 of full scale.
 const ENVELOPE_LOG2_FLOOR: i32 = 10;
-const INV_LN2: f32 = 1.442_695_040_888_963_4;
 
-/// Gaussian envelope evaluated in the log2 domain.
-///
-/// ```text
-/// log2(envelope) = -C*(n - t0/dt)^2 ,  C = (dt/sigma)^2 / ln2
-/// ```
-///
-/// That is a parabola, i.e. a constant second difference, so a step costs two
-/// additions:
-///
-/// ```text
-/// log2_envelope += log2_slope ;  log2_slope += log2_curvature
-/// ```
-/// The inverse map 2^x uses a cubic polynomial on [0,1) plus a shift by 2^-k.
-/// No lookup table, no exp.
+const INV_LN2: f32 = 1.442_695_040_888_963_4;
+const MAX_FRAC_BITS: u32 = 27;      // 10 << 27 still fits in i32
+const MIN_FRAC_BITS: u32 = 12;
+const MAX_SLOPE_Q: i64 = 1 << 30;   // headroom for slope + curvature
+
+/// Upper bound on the symmetric parameter: beyond this the curvature's
+/// quantisation shifts the half-height point by more than ~5 %.
+pub const MAX_FRAMES_TO_PEAK: u32 = 3663;
+
 pub struct BellEnv {
-    /// log2(envelope) in Q(frac_bits), always <= 0
+    /// log2(envelope) in Q(frac_bits); <= 0 always
     log2_envelope: i32,
     /// First difference of log2_envelope
     log2_slope: i32,
     /// Second difference, constant and negative
     log2_curvature: i32,
-    /// Lower bound for log2_envelope
+    /// Lower bound for log2_envelope, = -(BELL_OCTAVES << frac_bits)
     log2_floor: i32,
     /// Fractional bits of log2_envelope
     frac_bits: u32,
-    /// Initial value of log2_slope, so reset() is exact
+    /// log2_envelope at frame 0: 0 (peak first) or log2_floor (sym: at the foot)
+    initial_log2: i32,
+    /// log2_slope at frame 0, so reset() is exact
     initial_slope: i32,
-    /// True once log2_floor is reached (envelope frozen)
+    /// 0 = peak-first legacy mode; otherwise frames from frame 0 to the peak
+    peak_frame: u32,
+    /// frame whose sample the next update() returns (symmetric mode only)
+    frame: u32,
+    /// True once the envelope has ended
     finished: bool,
 }
 
 impl BellEnv {
-    /// `dt_over_sigma` = dt / sigma.
+    // -----------------------------------------------------------------------
+    // Legacy constructor: peak first, monotone decay. Unchanged numerics.
+    // -----------------------------------------------------------------------
+    /// `dt_over_sigma` = dt / sigma. Starts at the peak (frame 1 == dt) and
+    /// decays until the envelope falls below 2^-10 of full scale.
     pub fn new(dt_over_sigma: f32) -> Self {
         assert!(
             dt_over_sigma > 0.0 && dt_over_sigma < 3.0,
@@ -348,59 +386,149 @@ impl BellEnv {
             log2_curvature: -(curvature_q20 << 1),
             log2_floor: -(ENVELOPE_LOG2_FLOOR << frac_bits),
             frac_bits,
+            initial_log2: 0,
             initial_slope,
+            peak_frame: 0,
+            frame: 0,
             finished: false,
         }
     }
 
-    /// Build from precomputed design constants (float-free at startup).
-    pub const fn from_raw(initial_slope: i32, log2_curvature: i32, frac_bits: u32) -> Self {
+    // -----------------------------------------------------------------------
+    // Symmetric constructor: 32 -> 32767 -> 32, one parameter.
+    // -----------------------------------------------------------------------
+    /// Symmetric bell. `frames_to_peak` = L gives:
+    /// frame 0 = 32, frame L = 32767, frame 2L = 32, then 0.
+    /// That is 2L + 1 non-zero samples. sigma is implied: L = 2.628*sigma/dt.
+    pub fn symmetric(frames_to_peak: u32) -> Self {
+        assert!(frames_to_peak >= 2, "BellEnv: frames_to_peak must be >= 2");
+        assert!(
+            frames_to_peak <= MAX_FRAMES_TO_PEAK,
+            "BellEnv: frames_to_peak must be <= 3663"
+        );
+
+        let frames = frames_to_peak as i64;
+        let frames_sq = frames * frames;
+
+        // Largest Q-format whose slope and curvature still fit in i32.
+        let mut frac_bits = MAX_FRAC_BITS;
+        let curvature_q: i32 = loop {
+            // rounded: log2 g(k) = -C*(k-L)^2 with C = 10/L^2
+            let c = ((BELL_OCTAVES << frac_bits) + frames_sq / 2) / frames_sq;
+            if c >= 1 && c * (2 * frames + 1) <= MAX_SLOPE_Q {
+                break c as i32;
+            }
+            assert!(frac_bits > MIN_FRAC_BITS, "BellEnv: frames_to_peak too small");
+            frac_bits -= 1;
+        };
+
+        let floor = -((BELL_OCTAVES << frac_bits) as i32);
+        let initial_slope = (curvature_q as i64 * (2 * frames - 1)) as i32;
+
         Self {
-            log2_envelope: 0,
+            log2_envelope: floor,
             log2_slope: initial_slope,
-            log2_curvature,
-            log2_floor: -(ENVELOPE_LOG2_FLOOR << frac_bits),
+            log2_curvature: -2 * curvature_q,
+            log2_floor: floor,
             frac_bits,
+            initial_log2: floor,
             initial_slope,
+            peak_frame: frames_to_peak,
+            frame: 0,
             finished: false,
         }
     }
 
-    /// Restart at the peak of the parabola.
+    /// Restart at frame 0: at the peak (legacy) or at the left foot (symmetric).
     pub fn reset(&mut self) -> &mut Self {
-        self.log2_envelope = 0;
+        self.log2_envelope = self.initial_log2;
         self.log2_slope = self.initial_slope;
+        self.frame = 0;
         self.finished = false;
         self
     }
 
-    /// Returns exp(-((t-t0)/sigma)^2) in Q15. First call yields t = dt.
+    /// True once the envelope has ended; update() returns 0 from then on.
     #[inline(always)]
+    pub fn finished(&self) -> bool {
+        self.finished
+    }
+
+    /// Number of non-zero samples, or None in legacy mode (depends on the
+    /// floor crossing, which is not known in advance).
+    #[inline]
+    pub fn sample_count(&self) -> Option<u32> {
+        if self.peak_frame == 0 {
+            None
+        } else {
+            Some(2 * self.peak_frame + 1)
+        }
+    }
+
+    /// Envelope at the current frame, then advance by one frame.
+    /// First call yields t = dt (legacy) or frame 0 = 32 (symmetric).
+    #[inline]
     pub fn update(&mut self) -> i32 {
         if self.finished {
             return 0;
         }
+        if self.peak_frame == 0 {
+            self.update_peak_first()
+        } else {
+            self.update_symmetric()
+        }
+    }
+
+    #[inline]
+    fn update_peak_first(&mut self) -> i32 {
         self.log2_envelope += self.log2_slope;
         self.log2_slope += self.log2_curvature;
         if self.log2_envelope <= self.log2_floor {
-            // Freeze: without this the parabola climbs again and produces a
+            // Freeze here: without this the parabola climbs again and emits a
             // second (mathematically valid, visually wrong) pulse near 2*t0.
             self.log2_envelope = self.log2_floor;
             self.finished = true;
             return 0;
         }
-        self.exp2()
+        self.exp2_at(self.log2_envelope)
     }
 
-    pub fn finished(&self) -> bool {
-        self.finished
+    #[inline]
+    fn update_symmetric(&mut self) -> i32 {
+        if self.frame == 2 * self.peak_frame {
+            // Right foot: pinned, so the bell ends on exactly the value it
+            // started with regardless of the curvature rounding.
+            self.finished = true;
+            return BELL_ENDPOINT_Q15;
+        }
+
+        // Clamp instead of returning 0: a curvature rounded the wrong way
+        // would otherwise snap to silence a few frames before the foot.
+        let level = if self.log2_envelope > self.log2_floor {
+            self.log2_envelope
+        } else {
+            self.log2_floor
+        };
+        let value = self.exp2_at(level);
+
+        self.frame += 1;
+        if self.frame == self.peak_frame {
+            // Snap to the apex: the curvature rounding error is dropped here,
+            // so both arms are mirror images by construction.
+            self.log2_envelope = 0;
+            self.log2_slope = self.log2_curvature / 2; // = -C
+        } else {
+            self.log2_envelope += self.log2_slope;
+            self.log2_slope += self.log2_curvature;
+        }
+        value
     }
 
-    /// 2^(log2_envelope / 2^frac_bits) in Q15, log2_envelope <= 0.
+    /// 2^(log2_value / 2^frac_bits) in Q15, log2_value <= 0.
     #[inline(always)]
-    fn exp2(&self) -> i32 {
+    fn exp2_at(&self, log2_value: i32) -> i32 {
         // Arithmetic shift = floor, so the fraction below is always in [0,1)
-        let exponent_int = self.log2_envelope >> self.frac_bits;
+        let exponent_int = log2_value >> self.frac_bits;
         if exponent_int >= 0 {
             return I16_MAX; // exponent >= 0 means envelope >= 1: saturate
         }
@@ -409,7 +537,7 @@ impl BellEnv {
         }
         // Fractional part in Q10, range [0, 1024)
         let fraction_q10 =
-            (self.log2_envelope - (exponent_int << self.frac_bits)) >> (self.frac_bits - 10);
+            (log2_value - (exponent_int << self.frac_bits)) >> (self.frac_bits - 10);
 
         // 2^x on [0,1) in Q10, error < 0.05 %:
         // p(x) = 1 + x*(0.69556 + x*(0.22607 + x*0.07837))
@@ -421,6 +549,7 @@ impl BellEnv {
         sat15((poly_stage_1 << 5) >> (-exponent_int) as u32)
     }
 }
+
 
 // ===========================================================================
 // 5. Exciter
@@ -553,34 +682,6 @@ impl ExciterWave {
         self
     }
 
-    #[allow(dead_code)] // might be used in the future
-    fn distance_alt(&self, led: usize) -> usize {
-        let alt = led % STRIP_LENGTH;
-        (self.position.alt as i32 - alt as i32).abs() as usize * INTERSTEPS
-    }
-
-    fn distance(&self, led: usize) -> usize {
-        let alt = (led % STRIP_LENGTH) as i16;
-        let strip = (led / STRIP_LENGTH) as i16;
-
-        let p_alt = self.position.alt as i16;
-        let p_strip = self.position.strip as i16;
-
-        let d_alt2 = ((alt - p_alt) * (alt - p_alt)) as u16;
-
-        let half_circle = (STRIP_NUM / 2) as u16;
-        let d_strip = (strip - p_strip).abs() as u16;
-
-        let d_strip2 = if d_strip <= half_circle  {
-            (d_strip * d_strip) as u16
-        } else {
-            (STRIP_NUM as u16 - d_strip) * (STRIP_NUM as u16 - d_strip)
-        };
-
-        let d = (d_strip2 + d_alt2).isqrt() as usize;
-        d * INTERSTEPS
-    }
-
     fn reset(&mut self) {
         self.exciter.reset();
         self.steps_done = 0;
@@ -610,7 +711,7 @@ impl ExciterWave {
         }
 
         for i in 0..NUM_LED {
-            let dist = self.distance(i);
+            let dist = self.position.distance(i);
             let field = self.wave.field(dist);
             canvas.paint(i, self.color, field);
         }
@@ -619,18 +720,18 @@ impl ExciterWave {
 
 
 
-pub struct WaveShow<const NUM_EXCITERS: usize> {
-    exciter_waves: [ExciterWave; NUM_EXCITERS],
+pub struct WaveShow<const NUM_WAVES: usize> {
+    exciter_waves: [ExciterWave; NUM_WAVES],
 }
 
 
-pub struct RandomWaveShow<const NUM_EXCITERS: usize> {
+pub struct RandomWaveShow<const NUM_WAVES: usize> {
     hue: f32,
-    exciter_waves: [ExciterWave; NUM_EXCITERS],
+    exciter_waves: [ExciterWave; NUM_WAVES],
 }
 
 
-impl<const NUM_EXCITERS: usize> RandomWaveShow<NUM_EXCITERS> {
+impl<const NUM_WAVES: usize> RandomWaveShow<NUM_WAVES> {
 
     pub fn new() -> Self {
         let exciter_waves = core::array::from_fn(|_| ExciterWave::new_uninitialized());
@@ -641,7 +742,7 @@ impl<const NUM_EXCITERS: usize> RandomWaveShow<NUM_EXCITERS> {
 
 const WAVE_PROB: f32 = 9e-3;
 
-impl<const NUM_EXCITERS: usize> Show for RandomWaveShow<NUM_EXCITERS> {
+impl<const NUM_WAVES: usize> Show for RandomWaveShow<NUM_WAVES> {
     fn title(&self) -> &'static str {
         "RandomWaveShow"
     }
@@ -672,11 +773,11 @@ impl<const NUM_EXCITERS: usize> Show for RandomWaveShow<NUM_EXCITERS> {
 }
 
 
-pub struct RaisingWaveShow<const NUM_EXCITERS: usize> {
-    exciter_waves: [ExciterWave; NUM_EXCITERS],
+pub struct RaisingWaveShow<const NUM_WAVES: usize> {
+    exciter_waves: [ExciterWave; NUM_WAVES],
 }
 
-impl<const NUM_EXCITERS: usize> RaisingWaveShow<NUM_EXCITERS> {
+impl<const NUM_WAVES: usize> RaisingWaveShow<NUM_WAVES> {
 
     pub fn new() -> Self {
         let exciter_waves = core::array::from_fn(|_| ExciterWave::new_uninitialized());
@@ -685,7 +786,7 @@ impl<const NUM_EXCITERS: usize> RaisingWaveShow<NUM_EXCITERS> {
 
 }
 
-impl<const NUM_EXCITERS: usize> Show for RaisingWaveShow<NUM_EXCITERS> {
+impl<const NUM_WAVES: usize> Show for RaisingWaveShow<NUM_WAVES> {
     fn title(&self) -> &'static str {
         "RaisingWaveShow"
     }
@@ -725,8 +826,8 @@ impl<const NUM_EXCITERS: usize> Show for RaisingWaveShow<NUM_EXCITERS> {
     }
 }
 
-impl<const NUM_EXCITERS: usize> WaveShow<NUM_EXCITERS> {
-    fn new(exciter_waves: [ExciterWave; NUM_EXCITERS]) -> Self {
+impl<const NUM_WAVES: usize> WaveShow<NUM_WAVES> {
+    fn new(exciter_waves: [ExciterWave; NUM_WAVES]) -> Self {
         Self { exciter_waves }
     }
 }
@@ -766,7 +867,7 @@ pub fn constant_waveshow() -> WaveShow<3> {
 }
 
 
-impl<const NUM_EXCITERS: usize> Show for WaveShow<NUM_EXCITERS> {
+impl<const NUM_WAVES: usize> Show for WaveShow<NUM_WAVES> {
     fn title(&self) -> &'static str {
         "WaveShow"
     }
@@ -788,4 +889,150 @@ impl<const NUM_EXCITERS: usize> Show for WaveShow<NUM_EXCITERS> {
 
         StepResult::Running
     }
+}
+
+
+struct StaticWave {
+    wave: Wave8<RESOLUTION>,
+    position: Position,
+    color: Color,
+
+    carrier: SineOsc,
+    envelope: BellEnv,
+    active: bool,
+}
+
+impl StaticWave {
+    fn new(position: Position, color: Color, omega_dt: f32, dt_over_sigma: f32) -> Self {
+        Self {
+            wave: Wave8::new(Boundary::Mur, None),
+            position,
+            color,
+            carrier: SineOsc::new(omega_dt),
+            envelope: BellEnv::new(dt_over_sigma),
+            active: true,
+        }
+    }
+    fn new_uninitialized() -> Self {
+        let frequency: f32 = 2.0 as f32;
+        let omega: f32 = 10.0;
+        let sigma: f32 = 2.0;
+        let freq_steps = INTERSTEPS as f32 * 10.0 * frequency;
+
+        let omega_dt = omega / freq_steps;
+        let dt_over_sigma = 1.0 / (freq_steps * sigma);
+
+        Self {
+            position: Position { strip: 0, alt: 0 },
+            color: BLACK,
+            carrier: SineOsc::new(omega_dt),
+            envelope: BellEnv::new(dt_over_sigma),
+            wave: Wave8::new(Boundary::Mur, None),
+            active: false,
+        }
+    }
+
+    fn initialize(&mut self, position: Position, color: Color, wave_length: f32, bell_frames: u32) -> &mut Self {
+        self.position = position;
+        self.color = color;
+
+        let lam_led: f32 = wave_length;
+
+        let omega: f32 = 10.0;
+
+        let sigma: f32 = 0.2;
+
+        let frequency: f32 = 2.0 as f32;
+        let freq_steps = INTERSTEPS as f32 * 10.0 * frequency;
+        let t0 = 6.0;
+        let dt_over_sigma = 1.0 / (freq_steps * sigma);
+        let lead_steps = (t0 * freq_steps) as u32;
+
+
+        self.envelope = BellEnv::symmetric(bell_frames);
+
+        let omega_dt = omega / freq_steps;
+        self.carrier = SineOsc::new(omega_dt);
+
+        for _ in 0..RESOLUTION {
+            let signal = self.carrier.update();
+            let excitement = sat8(signal >> 8) as i8;
+            self.wave.step(excitement);
+
+        }
+
+        self.active = true;
+
+        self
+    }
+
+    fn process(&mut self, canvas: &mut Canvas) {
+        if self.color == BLACK {
+            return;
+        }
+
+        let bell_value = sat8(self.envelope.update() >> 8);
+
+        for i in 0..NUM_LED {
+            let dist = self.position.distance(i);
+            let field = self.wave.field(dist);
+            let value = iscale8(field, bell_value);
+            canvas.paint(i, self.color, value);
+        }
+
+        self.active = !self.envelope.finished();
+
+    }
+
+    fn is_finished(&self) -> bool {
+        !self.active
+    }
+}
+
+
+pub struct StaticWaveShow<const NUM_WAVES: usize> {
+    static_waves: [StaticWave; NUM_WAVES],
+    hue: f32,
+}
+
+impl<const NUM_WAVES: usize> StaticWaveShow<NUM_WAVES> {
+    pub fn new() -> Self {
+        let static_waves = core::array::from_fn(|_| StaticWave::new_uninitialized());
+        Self { static_waves, hue: 0.4 }
+    }
+}
+
+impl<const NUM_WAVES: usize> Show for StaticWaveShow<NUM_WAVES> {
+    fn title(&self) -> &'static str {
+        "StaticWaveShow"
+    }
+
+    fn reset(&mut self, iface: &mut Interface<'_>) {}
+
+    fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
+
+        for static_wave in self.static_waves.iter_mut() {
+            if static_wave.is_finished() {
+                relaunch_wave(iface, static_wave, self.hue);
+                usb_writeln!(iface, "relaunching {}", static_wave.is_finished());
+                self.hue += 0.33;
+            }
+            static_wave.process(iface.canvas());
+        }
+
+        iface.write_out_canvas();
+
+        StepResult::Running
+    }
+}
+
+fn relaunch_wave(iface: &mut Interface<'_>, static_wave: &mut StaticWave, hue: f32) {
+    let position = Position {
+        strip: iface.random().value32(STRIP_NUM as u32) as usize,
+        alt: iface.random().value32(STRIP_LENGTH as u32) as usize
+    };
+
+    let wave_length = iface.random().value() * 30.0 + 2.0;
+    let bell_frames = iface.random().value32(500) + 50;
+    static_wave.initialize(position, Color::from_hsv(hue, 1.0, 1.0), wave_length, bell_frames);
 }
