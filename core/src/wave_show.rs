@@ -966,7 +966,7 @@ impl StaticWave {
             return;
         }
 
-        let bell_value = sat8(self.envelope.update() >> 7);
+        let bell_value = sat8(self.envelope.update() >> 9);
 
         for i in 0..NUM_LED {
             let dist = self.position.distance(i);
@@ -1020,10 +1020,11 @@ impl<const NUM_WAVES: usize> Show for StaticWaveShow<NUM_WAVES> {
                 static_wave.process(iface.canvas());
                 break;
             }
+        }
+        for static_wave in self.static_waves.iter_mut() {
             if !static_wave.is_finished() {
                 static_wave.process(iface.canvas());
             }
-
         }
 
         iface.write_out_canvas();
@@ -1038,7 +1039,7 @@ fn relaunch_wave(iface: &mut Interface<'_>, static_wave: &mut StaticWave, hue: f
         alt: iface.random().value32(STRIP_LENGTH as u32) as usize
     };
 
-    let wave_length = iface.random().value() * 30.0 + 2.0;
+    let wave_length = iface.random().value() * 20.0 + 8.0;
     let bell_frames = CLIMB_FRAMES;
     static_wave.initialize(position, Color::from_hsv(hue, 1.0, 1.0), wave_length, bell_frames);
 }
