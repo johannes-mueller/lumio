@@ -18,6 +18,7 @@ pub mod player;
 pub mod random;
 pub mod showtimer;
 pub mod sine;
+pub mod signals;
 
 // Shows
 pub mod fire;
