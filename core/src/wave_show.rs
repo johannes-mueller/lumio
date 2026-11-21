@@ -454,6 +454,14 @@ impl BellEnv {
         self.finished
     }
 
+    pub fn is_climbing(&self) -> bool {
+        self.frame < self.peak_frame
+    }
+
+    pub fn frames_done(&self) -> u32 {
+        self.frame
+    }
+
     /// Number of non-zero samples, or None in legacy mode (depends on the
     /// floor crossing, which is not known in advance).
     #[inline]
@@ -718,18 +726,9 @@ impl ExciterWave {
     }
 }
 
-
-
 pub struct WaveShow<const NUM_WAVES: usize> {
     exciter_waves: [ExciterWave; NUM_WAVES],
 }
-
-
-pub struct RandomWaveShow<const NUM_WAVES: usize> {
-    hue: f32,
-    exciter_waves: [ExciterWave; NUM_WAVES],
-}
-
 
 impl<const NUM_WAVES: usize> RandomWaveShow<NUM_WAVES> {
 
@@ -737,10 +736,15 @@ impl<const NUM_WAVES: usize> RandomWaveShow<NUM_WAVES> {
         let exciter_waves = core::array::from_fn(|_| ExciterWave::new_uninitialized());
         Self { hue: 0.0, exciter_waves }
     }
-
 }
 
 const WAVE_PROB: f32 = 9e-3;
+
+
+pub struct RandomWaveShow<const NUM_WAVES: usize> {
+    hue: f32,
+    exciter_waves: [ExciterWave; NUM_WAVES],
+}
 
 impl<const NUM_WAVES: usize> Show for RandomWaveShow<NUM_WAVES> {
     fn title(&self) -> &'static str {
@@ -772,7 +776,6 @@ impl<const NUM_WAVES: usize> Show for RandomWaveShow<NUM_WAVES> {
     }
 }
 
-
 pub struct RaisingWaveShow<const NUM_WAVES: usize> {
     exciter_waves: [ExciterWave; NUM_WAVES],
 }
@@ -797,7 +800,7 @@ impl<const NUM_WAVES: usize> Show for RaisingWaveShow<NUM_WAVES> {
     fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
 
         let all_inactive = self.exciter_waves.iter().all(|e| e.inactive());
-        if all_inactive &&  iface.random().value() < WAVE_PROB {
+        if all_inactive && iface.random().value() < WAVE_PROB {
             let position_0 = Position { strip: 0, alt: 0 };
             let position_1 = Position { strip: 7, alt: 0 };
             let position_2 = Position { strip: 23, alt: 0 };
@@ -913,6 +916,7 @@ impl StaticWave {
             active: true,
         }
     }
+
     fn new_uninitialized() -> Self {
         let frequency: f32 = 2.0 as f32;
         let omega: f32 = 10.0;
@@ -936,22 +940,13 @@ impl StaticWave {
         self.position = position;
         self.color = color;
 
-        let lam_led: f32 = wave_length;
-
-        let omega: f32 = 10.0;
-
-        let sigma: f32 = 0.2;
-
-        let frequency: f32 = 2.0 as f32;
-        let freq_steps = INTERSTEPS as f32 * 10.0 * frequency;
-        let t0 = 6.0;
-        let dt_over_sigma = 1.0 / (freq_steps * sigma);
-        let lead_steps = (t0 * freq_steps) as u32;
-
-
         self.envelope = BellEnv::symmetric(bell_frames);
 
+        let omega: f32 = 10.0;
+        let frequency: f32 = 2.0 as f32;
+        let freq_steps = INTERSTEPS as f32 * wave_length * frequency;
         let omega_dt = omega / freq_steps;
+
         self.carrier = SineOsc::new(omega_dt);
 
         for _ in 0..RESOLUTION {
@@ -971,7 +966,7 @@ impl StaticWave {
             return;
         }
 
-        let bell_value = sat8(self.envelope.update() >> 8);
+        let bell_value = sat8(self.envelope.update() >> 7);
 
         for i in 0..NUM_LED {
             let dist = self.position.distance(i);
@@ -980,8 +975,7 @@ impl StaticWave {
             canvas.paint(i, self.color, value);
         }
 
-        self.active = !self.envelope.finished();
-
+        self.active = self.envelope.frame < 2 * CLIMB_FRAMES - 1;
     }
 
     fn is_finished(&self) -> bool {
@@ -1002,22 +996,34 @@ impl<const NUM_WAVES: usize> StaticWaveShow<NUM_WAVES> {
     }
 }
 
+const CLIMB_FRAMES: u32 = 150;
+
 impl<const NUM_WAVES: usize> Show for StaticWaveShow<NUM_WAVES> {
     fn title(&self) -> &'static str {
         "StaticWaveShow"
     }
 
-    fn reset(&mut self, iface: &mut Interface<'_>) {}
+    fn reset(&mut self, _iface: &mut Interface<'_>) {}
 
     fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
 
-        for static_wave in self.static_waves.iter_mut() {
-            if static_wave.is_finished() {
+        let all_finished = self.static_waves.iter().all(|sw| sw.is_finished());
+
+        for i in 0..NUM_WAVES {
+            let prev = (i + NUM_WAVES - 1) % NUM_WAVES;
+            let previous_climbing_frames = self.static_waves[prev].envelope.frames_done();
+            let new_needed = all_finished || previous_climbing_frames > 2 * CLIMB_FRAMES / NUM_WAVES as u32;
+            let static_wave = &mut self.static_waves[i];
+            if static_wave.is_finished() && new_needed {
                 relaunch_wave(iface, static_wave, self.hue);
-                usb_writeln!(iface, "relaunching {}", static_wave.is_finished());
-                self.hue += 0.33;
+                self.hue = (self.hue + 0.3) % 1.0;
+                static_wave.process(iface.canvas());
+                break;
             }
-            static_wave.process(iface.canvas());
+            if !static_wave.is_finished() {
+                static_wave.process(iface.canvas());
+            }
+
         }
 
         iface.write_out_canvas();
@@ -1033,6 +1039,6 @@ fn relaunch_wave(iface: &mut Interface<'_>, static_wave: &mut StaticWave, hue: f
     };
 
     let wave_length = iface.random().value() * 30.0 + 2.0;
-    let bell_frames = iface.random().value32(500) + 50;
+    let bell_frames = CLIMB_FRAMES;
     static_wave.initialize(position, Color::from_hsv(hue, 1.0, 1.0), wave_length, bell_frames);
 }
