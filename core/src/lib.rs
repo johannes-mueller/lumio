@@ -32,6 +32,7 @@ pub mod spiral;
 pub mod stars;
 pub mod snow;
 pub mod wave_show;
+pub mod lissajous;
 
 pub use interface::Interface;
 pub use player::{Player, Show, StepResult};

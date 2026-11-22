@@ -23,6 +23,10 @@ pub fn iscale8(a: i8, b: i8) -> i8 {
     ((a as i16 * b as i16) >> 7) as i8
 }
 
+pub fn iscale16(a: i16, b: i16) -> i16 {
+    ((a as i32 * b as i32) >> 15) as i16
+}
+
 
 pub const I8_MIN: i32 = i8::MIN as i32;
 pub const I8_MAX: i32 = i8::MAX as i32;

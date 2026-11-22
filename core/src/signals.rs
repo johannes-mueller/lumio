@@ -24,6 +24,8 @@ pub struct SineOsc {
     cos_value: i32,
     /// Initial value of cos_value, so reset() is exact
     initial_cos: i32,
+
+    omega_dt: f32,
 }
 
 impl SineOsc {
@@ -49,18 +51,19 @@ impl SineOsc {
             sin_value: 0,
             cos_value: initial_cos,
             initial_cos,
+            omega_dt,
         }
     }
 
-    /// Build from precomputed design constants (float-free at startup).
-    pub const fn from_phase_step(phase_step: i32, initial_cos: i32) -> Self {
-        Self {
-            phase_step,
-            sin_value: 0,
-            cos_value: initial_cos,
-            initial_cos,
-        }
-    }
+    // /// Build from precomputed design constants (float-free at startup).
+    // pub const fn from_phase_step(phase_step: i32, initial_cos: i32) -> Self {
+    //     Self {
+    //         phase_step,
+    //         sin_value: 0,
+    //         cos_value: initial_cos,
+    //         initial_cos,
+    //     }
+    // }
 
     /// Restart the oscillator in phase and amplitude.
     pub fn reset(&mut self) -> &mut Self {
@@ -78,6 +81,10 @@ impl SineOsc {
         self.sin_value = sin_new;
         self.cos_value = cos_new;
         sin_new
+    }
+
+    pub fn frames_per_wave(&self) -> f32 {
+        core::f32::consts::PI / (0.5 * self.omega_dt)
     }
 }
 
