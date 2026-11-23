@@ -81,6 +81,12 @@ impl LEDStrip {
             led.set_color(BLACK);
         }
     }
+
+    pub fn black_decay(&mut self, decay: u8) {
+        for led in self.leds.iter_mut() {
+            led.set_target(BLACK, decay);
+        }
+    }
 }
 
 fn index_from_pos(pos: isize) -> usize {
