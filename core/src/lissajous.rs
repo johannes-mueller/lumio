@@ -1,5 +1,5 @@
 use crate::{
-    conf::*, interface::Interface, led::{BLACK, DARK_WHITE}, math8::{iscale8, sat8}, player::{Show, StepResult}, signals::SineOsc, sine::{Sine},
+    conf::*, interface::Interface, led::{Color, BLACK, GREEN}, math8::{iscale8, sat8}, player::{Show, StepResult}, signals::SineOsc, sine::{Sine},
 };
 
 use core::f32::consts::PI;
@@ -14,17 +14,18 @@ pub struct Lissajous {
     ampl_phi: i8,
 
     center_y: i8,
-    center_phi: i8,
+    center_phi: isize,
 
     phase_phi: f32,
+    hue: f32,
 }
 
 
 impl Lissajous {
     pub fn new() -> Self {
         let phase_phi = 0.25;
-        let mut sine_y = Sine::new(28, 1007, 30);
-        let sine_phi = Sine::new(12, 998, 12);
+        let sine_y = Sine::new(28, 302, 26);
+        let sine_phi = Sine::new(0, 141, 12);
 
         // let phase_iterations = (phase_phi * sine_y.frames_per_wave()) as u32;
         // for _ in 0..phase_iterations {
@@ -39,9 +40,10 @@ impl Lissajous {
             ampl_phi: 10,
 
             center_y: 30,
-            center_phi: 12,
+            center_phi: 0,
 
-            phase_phi
+            phase_phi,
+            hue: 0.0,
         }
     }
 }
@@ -56,7 +58,7 @@ impl Show for Lissajous {
 
     fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
 
-
+        iface.led_strip().black_decay(12);
         //let iterations = self.sine_y.frames_per_wave().max(self.sine_phi.frames_per_wave()) as u32;
 
         let pos_y = self.sine_y.process();
@@ -69,11 +71,11 @@ impl Show for Lissajous {
         let start = pos_phi as isize * strip_length;
         let end = start + strip_length;
 
-        for black_pos in start..end {
-            iface.led_strip().set_led_target(black_pos, BLACK, 32);
-        }
+        // for black_pos in start..end {
+        //     iface.led_strip().set_led_target(black_pos, BLACK, 16);
+        // }
 
-        iface.led_strip().set_led(pos, DARK_WHITE);
+        iface.led_strip().set_led(pos, GREEN);
 
         iface.write_spi();
 
