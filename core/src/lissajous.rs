@@ -55,18 +55,25 @@ impl Show for Lissajous {
     fn reset(&mut self, _iface: &mut Interface<'_>) {}
 
     fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
-        iface.led_strip().black();
+
 
         //let iterations = self.sine_y.frames_per_wave().max(self.sine_phi.frames_per_wave()) as u32;
 
-        for _ in 0..(2*STRIP_NUM) {
-            let pos_y = self.sine_y.process();
-            let pos_phi = self.sine_phi.process();
+        let pos_y = self.sine_y.process();
+        let pos_phi = self.sine_phi.process();
 
-            let pos = (pos_y as isize + STRIP_LENGTH as isize * pos_phi as isize);
+        let pos = (pos_y as isize + STRIP_LENGTH as isize * pos_phi as isize);
 
-            iface.led_strip().set_led(pos, DARK_WHITE);
+
+        let strip_length = STRIP_LENGTH as isize;
+        let start = pos_phi as isize * strip_length;
+        let end = start + strip_length;
+
+        for black_pos in start..end {
+            iface.led_strip().set_led_target(black_pos, BLACK, 32);
         }
+
+        iface.led_strip().set_led(pos, DARK_WHITE);
 
         iface.write_spi();
 
