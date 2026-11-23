@@ -1,5 +1,5 @@
 use crate::{
-    conf::*, interface::Interface, led::{BLACK, DARK_WHITE}, math8::{iscale16, sat8}, player::{Show, StepResult}, signals::SineOsc, usb_writeln,
+    conf::*, interface::Interface, led::{BLACK, DARK_WHITE}, math8::{iscale8, sat8}, player::{Show, StepResult}, signals::SineOsc, sine::{Sine},
 };
 
 use core::f32::consts::PI;
@@ -7,14 +7,14 @@ use core::f32::consts::PI;
 
 
 pub struct Lissajous {
-    sine_y: SineOsc,
-    sine_phi: SineOsc,
+    sine_y: Sine,
+    sine_phi: Sine,
 
-    ampl_y: i16,
-    ampl_phi: i16,
+    ampl_y: i8,
+    ampl_phi: i8,
 
-    center_y: i16,
-    center_phi: i16,
+    center_y: i8,
+    center_phi: i8,
 
     phase_phi: f32,
 }
@@ -23,13 +23,13 @@ pub struct Lissajous {
 impl Lissajous {
     pub fn new() -> Self {
         let phase_phi = 0.25;
-        let mut sine_y = SineOsc::new(1.0 / 20.0);
-        let sine_phi = SineOsc::new(1.0 / 10.01);
+        let mut sine_y = Sine::new(28, 1007, 30);
+        let sine_phi = Sine::new(12, 998, 12);
 
-        let phase_iterations = (phase_phi * sine_y.frames_per_wave()) as u32;
-        for _ in 0..phase_iterations {
-            sine_y.update();
-        }
+        // let phase_iterations = (phase_phi * sine_y.frames_per_wave()) as u32;
+        // for _ in 0..phase_iterations {
+        //     sine_y.update();
+        // }
 
         Lissajous {
             sine_y,
@@ -49,7 +49,7 @@ impl Lissajous {
 
 impl Show for Lissajous {
     fn title(&self) -> &'static str {
-        "StaticWaveShow"
+        "Lissajous"
     }
 
     fn reset(&mut self, _iface: &mut Interface<'_>) {}
@@ -57,13 +57,11 @@ impl Show for Lissajous {
     fn step(&mut self, iface: &mut Interface<'_>) -> StepResult {
         iface.led_strip().black();
 
-        let iterations = self.sine_y.frames_per_wave().max(self.sine_phi.frames_per_wave()) as u32;
+        //let iterations = self.sine_y.frames_per_wave().max(self.sine_phi.frames_per_wave()) as u32;
 
-        for _ in 0..iterations {
-            let pos_y = iscale16(self.sine_y.update() as i16, self.ampl_y) + self.center_y;
-            let pos_phi = iscale16(self.sine_phi.update() as i16, self.ampl_phi) + self.center_phi;
-
-            usb_writeln!(iface, "{} {} {} {}", pos_y, pos_phi, self.center_y, self.center_phi);
+        for _ in 0..(2*STRIP_NUM) {
+            let pos_y = self.sine_y.process();
+            let pos_phi = self.sine_phi.process();
 
             let pos = (pos_y as isize + STRIP_LENGTH as isize * pos_phi as isize);
 
